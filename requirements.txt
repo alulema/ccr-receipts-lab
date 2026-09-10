@@ -1,0 +1,5 @@
+# ccr-receipts-lab core is intentionally dependency-free (Python 3.10+ stdlib only),
+# so the deterministic benchmark reproduces identically across machines.
+#
+# Nothing to install for scripts/run.py. Optional extras (plots, real Azure
+# Confidential Computing attestation client) will be added here when introduced.
