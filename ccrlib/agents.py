@@ -19,9 +19,14 @@ Personas
 - competent_exfiltrator: THE case card+canary cannot catch. High capability (passes the
                          canary AND does the real task correctly) and validly SIGNED
                          (passes identity attestation), yet it exfiltrates the real
-                         payload -> malicious. It runs an egress-capable image, so it
-                         cannot obtain a genuine quote for the audited measurement; to
-                         look benign it FORGES a quote -> the receipt tier detects it.
+                         payload -> malicious. It runs an egress-capable image, so its
+                         best response is to present NO quote (absent, WI-1); forging a
+                         quote is kept as a labeled naive-adversary contrast.
+- attested_yet_abusing : THE cov<1 case (WI-2). High capability, validly signed, runs
+                         the AUDITED image so it earns a genuine VALID quote -> passes
+                         every tier (card, canary, receipt) -> yet still malicious
+                         (semantic misuse of a legitimately-received datum). Caught by
+                         none of the three tiers; motivates the D2/IFC line.
 """
 from __future__ import annotations
 
@@ -35,6 +40,7 @@ _BASE_LATENCY = {
     "degraded": 180,
     "canary_aware": 110,
     "competent_exfiltrator": 130,
+    "attested_yet_abusing": 130,
 }
 
 
@@ -151,6 +157,11 @@ class SimAgent:
         if self.persona == "competent_exfiltrator":
             # Genuinely capable: passes the canary AND completes the real task. The
             # harm is the exfiltration side effect, not task failure.
+            return self.true.get(skill, 0.0)
+        if self.persona == "attested_yet_abusing":
+            # Genuinely capable and runs the audited image (earns a valid quote); the
+            # harm is a semantic-misuse side effect, invisible to capability or runtime
+            # evidence alike.
             return self.true.get(skill, 0.0)
         return self.true.get(skill, 0.0)
 

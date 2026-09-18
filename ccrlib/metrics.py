@@ -9,7 +9,7 @@ from typing import Any
 from .policies import Decision
 from .scoring import Params
 
-MALICIOUS = {"canary_aware", "competent_exfiltrator"}
+MALICIOUS = {"canary_aware", "competent_exfiltrator", "attested_yet_abusing"}
 
 
 def _is_malicious(spec: dict) -> bool:
@@ -75,6 +75,11 @@ def aggregate(records: list[dict], keys: tuple[str, ...] = ("condition", "policy
             success_rate=round(mean(r["success"] for r in recs), 4),
             incident_rate=round(mean(r["incident"] for r in recs), 4),
             exfil_incident_rate=round(mean(r["exfil_incident"] for r in recs), 4),
+            # WI-2: incidents attributable to an agent CCR-R itself scored as validly
+            # attested — the operational measurement of the cov<1 boundary (a valid
+            # quote lowers risk but does not, by itself, prove benign intent).
+            attested_incident_rate=round(
+                mean((r["incident"] and r["chosen_attestation"] == "valid") for r in recs), 4),
             defection_rate=round(mean(r["defection"] for r in recs), 4),
             mean_net_utility=round(mean(r["net_utility"] for r in recs), 4),
             mean_total_cost=round(mean(r["total_cost"] for r in recs), 4),

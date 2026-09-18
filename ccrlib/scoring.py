@@ -65,7 +65,29 @@ class Params:
                                       # attestation removes. <1 on purpose: attestation
                                       # proves the runtime, not that a legitimately
                                       # received datum won't be misused (attestation != IFC).
+                                      # MODEL-LOCK A1 (see HANDOFF §2): a single scalar
+                                      # blends the "runtime" class (cov~0.9, structurally
+                                      # removed by a valid quote) and the "semantic" class
+                                      # (cov~0.0, NOT removable by runtime attestation --
+                                      # that is D2/IFC). Kept as one scalar deliberately:
+                                      # attested_risk() cannot condition on the incident's
+                                      # true class without reading ground truth (would
+                                      # violate the observability invariant, §1). WI-2's
+                                      # `attested_yet_abusing` persona measures the
+                                      # semantic residual OPERATIONALLY instead (it is
+                                      # observably identical to `correct` once attested,
+                                      # so its incident rate under a valid quote IS the
+                                      # cov<1 boundary) -- no separate `cov_by_class` /
+                                      # `semantic_floor` parameter is threaded through the
+                                      # formula. Exact numeric split and paper-facing
+                                      # justification: pending paper-side sign-off (§6).
     risk_unattested: float = 0.35     # risk added when attestation requested but ABSENT
+                                      # TODO (A3, optional, not implemented yet): could be made
+                                      # context-sensitive -- declining attestation is more
+                                      # suspicious when the pool HAS attestable agents
+                                      # (adoption high) than when TEEs are broadly
+                                      # unavailable (adoption low). Left as a single
+                                      # constant until WI-1 data justifies the refinement.
     risk_forged: float = 0.60         # risk added when a forged/invalid quote is detected
     extra: dict = field(default_factory=dict)
 

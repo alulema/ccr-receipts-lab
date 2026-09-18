@@ -4,6 +4,8 @@ __pycache__/
 *.egg-info/
 .venv/
 venv/
+# Local embeddable-Python used only for verification; not for commit.
+.pytools/
 
 # Generated experiment outputs
 /results/

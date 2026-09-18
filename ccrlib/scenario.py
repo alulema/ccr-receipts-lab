@@ -18,7 +18,14 @@ Personas
                           cannot attest the audited image.
 - competent_exfiltrator : capable (0.90) AND validly signed, advertises at the ceiling
                           so it ranks first — yet it exfiltrates the real payload. It
-                          runs an egress image, so it can only FORGE an attestation.
+                          runs an egress image, so its best response is to present NO
+                          quote (absent); forging (claiming the audited measurement) is
+                          a labeled naive-adversary contrast (see `exfil_attest`).
+- attested_yet_abusing  : capable (0.90), validly signed, runs the AUDITED image (earns
+                          a genuine VALID quote) yet still causes an incident (semantic
+                          misuse of a legitimately-received datum). Measures the cov<1
+                          boundary: attestation proves the runtime, not benign use of
+                          the data (WI-2; `n_attest_abuser`).
 """
 from __future__ import annotations
 
@@ -40,6 +47,8 @@ PERSONA_TRUE = {
     "degraded": 0.70,
     "canary_aware": 0.12,
     "competent_exfiltrator": 0.90,   # genuinely capable — that is the whole problem
+    "attested_yet_abusing": 0.90,    # capable AND validly attested; misuse is semantic
+                                     # (the cov<1 boundary — attestation != IFC, WI-2)
 }
 
 
@@ -75,6 +84,8 @@ def build_agents(
     n_degraded: int = 1,
     n_canary_aware: int = 1,
     n_exfil: int = 1,
+    exfil_attest: str = "forge",   # "forge" (naive) | "absent" (best response, WI-1)
+    n_attest_abuser: int = 0,      # attested_yet_abusing count per skill (WI-2)
 ) -> list[dict]:
     agents: list[dict] = []
     for skill in SKILLS:
@@ -112,13 +123,33 @@ def build_agents(
 
         for i in range(n_exfil):
             # THE hard case: capable + validly signed, advertises at the ceiling to
-            # rank first, but exfiltrates. Runs an egress image -> can only FORGE.
+            # rank first, but exfiltrates. Runs an egress image -> cannot obtain a
+            # genuine quote for the audited measurement. Its best response is ABSENT
+            # (+risk_unattested=0.35), NOT forge (+risk_forged=0.60): forging is
+            # strictly dominated (0.60 > 0.35), i.e. it is the adversary that
+            # "incriminates itself" (AISec #88B). "forge" stays as a labeled naive
+            # contrast; "absent" is the headline best-response adversary (WI-1).
+            forges = (exfil_attest == "forge")
             agents.append(_agent("competent_exfiltrator", skill, "adventureworks", i,
                                  CEILING,
                                  signed=True, poison=False, scope="narrow",
                                  desc=f"Premium {skill} specialist. {kw}",
-                                 attestable=False, forges=True,
+                                 attestable=False, forges=forges,
                                  runtime=EXFIL_MEASUREMENT))
+
+        for i in range(n_attest_abuser):
+            # Runs the AUDITED image => earns a VALID quote, yet misuses a
+            # legitimately-received datum through a channel the audited image
+            # legitimately has (e.g. writes to a shared store read out-of-band later).
+            # Observably indistinguishable from `correct` once attested — that
+            # indistinguishability IS the measured cov<1 boundary (WI-2): attestation
+            # proves the runtime, not benign use of the data (semantic, not runtime).
+            agents.append(_agent("attested_yet_abusing", skill, "adventureworks", i,
+                                 CEILING,
+                                 signed=True, poison=False, scope="narrow",
+                                 desc=f"Certified premium {skill} specialist. {kw}",
+                                 attestable=True, forges=False,
+                                 runtime=AUDITED_MEASUREMENT))
     return agents
 
 
@@ -136,5 +167,6 @@ def build_tasks(n: int) -> list[dict]:
 
 
 def malice_fraction(specs: list[dict]) -> float:
-    mal = sum(1 for s in specs if s["persona"] in ("canary_aware", "competent_exfiltrator"))
+    mal = sum(1 for s in specs
+              if s["persona"] in ("canary_aware", "competent_exfiltrator", "attested_yet_abusing"))
     return round(mal / len(specs), 3) if specs else 0.0
