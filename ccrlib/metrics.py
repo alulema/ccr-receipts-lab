@@ -32,6 +32,16 @@ def evaluate(dec: Decision, spec_by_id: dict[str, dict], p: Params) -> dict[str,
         for a in dec.real_attempts
     )
 
+    # WI-2: incident caused by an agent the router itself scored as VALIDLY attested —
+    # the operational cov<1 measurement. Attributed to the attempt that touched the
+    # malicious agent, NOT to the last attempt (a fallback chain can end on a benign
+    # `valid` agent after an `absent` malicious one failed; that is not an attested
+    # incident — v2.1 fix, was previously read from `chosen_attestation`).
+    attested_incident = any(
+        _is_malicious(spec_by_id.get(a, {})) and dec.attestation_status.get(a) == "valid"
+        for a in dec.real_attempts
+    )
+
     # Strategic defection: a malicious agent that passed the canary and then failed
     # its real attempt (probe evasion by an incapable canary-aware defector).
     defection = any(_is_malicious(spec_by_id.get(a, {})) for a in dec.canary_pass_real_fail)
@@ -48,6 +58,7 @@ def evaluate(dec: Decision, spec_by_id: dict[str, dict], p: Params) -> dict[str,
         "success": dec.success,
         "incident": incident,
         "exfil_incident": exfil_incident,
+        "attested_incident": attested_incident,
         "defection": defection,
         "chose_malicious": _is_malicious(spec_by_id.get(chosen, {})) if chosen else False,
         "chosen_attestation": dec.chosen_attestation,
@@ -75,11 +86,9 @@ def aggregate(records: list[dict], keys: tuple[str, ...] = ("condition", "policy
             success_rate=round(mean(r["success"] for r in recs), 4),
             incident_rate=round(mean(r["incident"] for r in recs), 4),
             exfil_incident_rate=round(mean(r["exfil_incident"] for r in recs), 4),
-            # WI-2: incidents attributable to an agent CCR-R itself scored as validly
-            # attested — the operational measurement of the cov<1 boundary (a valid
-            # quote lowers risk but does not, by itself, prove benign intent).
-            attested_incident_rate=round(
-                mean((r["incident"] and r["chosen_attestation"] == "valid") for r in recs), 4),
+            # WI-2: incidents attributable to a malicious agent CCR-R itself scored as
+            # validly attested — the operational cov<1 measurement (see evaluate()).
+            attested_incident_rate=round(mean(r["attested_incident"] for r in recs), 4),
             defection_rate=round(mean(r["defection"] for r in recs), 4),
             mean_net_utility=round(mean(r["net_utility"] for r in recs), 4),
             mean_total_cost=round(mean(r["total_cost"] for r in recs), 4),

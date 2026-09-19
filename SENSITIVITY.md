@@ -27,8 +27,8 @@ At k=4 the four ceiling-declarers (`degraded`, `canary_aware`, exfiltrator, and 
 
 | k | ccrR_inc | ccrR_exfil | ccrR_attested_inc | ccrR_net | receipts | ccrR chosen shares |
 |---|---|---|---|---|---|---|
-| 4 | 0.315 | 0.128 | 0.193 | 0.36 | 4.00 | attested_yet_abusing 0.177, canary_aware 0.008, competent_exfiltrator 0.115, correct 0.417, degraded 0.284 |
-| 5 | 0.262 | 0.013 | 0.247 | 0.09 | 5.00 | attested_yet_abusing 0.228, canary_aware 0.001, competent_exfiltrator 0.013, correct 0.488, degraded 0.270 |
+| 4 | 0.315 | 0.128 | 0.199 | 0.36 | 4.00 | attested_yet_abusing 0.177, canary_aware 0.008, competent_exfiltrator 0.115, correct 0.417, degraded 0.284 |
+| 5 | 0.262 | 0.013 | 0.250 | 0.09 | 5.00 | attested_yet_abusing 0.228, canary_aware 0.001, competent_exfiltrator 0.013, correct 0.488, degraded 0.270 |
 | 6 | 0.168 | 0.000 | 0.168 | -0.85 | 6.00 | attested_yet_abusing 0.168, correct 0.388, degraded 0.444 |
 
 ## Abuser-share sweep (`n_attest_abuser` ∈ {1, 2} vs 2 `correct` per skill; CCR-R, k=6)

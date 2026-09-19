@@ -128,6 +128,7 @@ scripts/
 EVIDENCE.md       RQ1–RQ5 + RQ-COV tables with CIs   (generated — never edit by hand)
 SENSITIVITY.md    cov, adoption×ρ (a*), ρ, λ_R, d_H, availability, claim_gap sweeps (generated)
 REPRODUCE.md      exact commands (generated)
+figures/*.csv     plot-ready series for the paper (generated; RQ2, RQ3, adoption×ρ, RQ5)
 docs/threat-mapping.md   persona ↔ A2ASecBench class / RATS attestation threat (WI-6)
 tests/test_attestation.py  verifier self-test: valid / forge / replay (WI-4)
 ```
@@ -149,7 +150,7 @@ python -m unittest discover tests          # attestation verifier self-test (val
 ```
 
 **All numbers below are copied from `EVIDENCE.md` / `SENSITIVITY.md` at the tagged commit
-(`aamas27-evidence-v2`, 8 seeds × 96 tasks = 768 runs/cell).** If a number here disagrees
+(`aamas27-evidence-v2.1`, 8 seeds × 96 tasks = 768 runs/cell).** If a number here disagrees
 with those files, the files win — they are generated; this section is prose. Headline
 adversary: best-response `absent`. (Why 96 tasks and not 24: see the task-sample convergence
 table in `SENSITIVITY.md` — the WI-2 residual is a task-sample statistic.)
@@ -270,4 +271,4 @@ internal knowledge and does not represent any employer.
    advertising attestation support (observable-only version of A3; future work).
 5. ~~`docs/threat-mapping.md`~~ (done, WI-6 — A2ASecBench labels still marked *verify*).
 6. ~~`EVIDENCE.md` / `SENSITIVITY.md` generation script~~ (done, WI-5 — `scripts/emit_evidence.py`,
-   `--check` verifies byte-for-byte; cite the `aamas27-evidence-v2` tag).
+   `--check` verifies byte-for-byte; cite the `aamas27-evidence-v2.1` tag).

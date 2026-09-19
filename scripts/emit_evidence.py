@@ -298,8 +298,8 @@ def emit_reproduce(n_seeds: int, n_tasks: int) -> str:
         "all draws come from `ccrlib/domain.det_unit` hashing, so every machine produces the "
         "same bytes.", "",
         "```bash",
-        f"python scripts/emit_evidence.py            # rewrite EVIDENCE.md, SENSITIVITY.md, REPRODUCE.md "
-        f"({n_seeds} seeds x {n_tasks} tasks)",
+        f"python scripts/emit_evidence.py            # rewrite EVIDENCE.md, SENSITIVITY.md, REPRODUCE.md, "
+        f"figures/*.csv ({n_seeds} seeds x {n_tasks} tasks)",
         "python scripts/emit_evidence.py --check    # regenerate to a temp dir and diff against the committed files",
         "python scripts/run.py --ci                 # console view of the same cells (RQ1..RQ5, RQ-COV)",
         "python -m unittest discover tests          # attestation verifier self-test (valid / forge / replay)",
@@ -307,8 +307,53 @@ def emit_reproduce(n_seeds: int, n_tasks: int) -> str:
         "`--check` exits non-zero if any generated file differs from the committed one — run it "
         "before citing a number. To cite a number in the paper, cite the git tag of the commit "
         "that contains these files (e.g. `aamas27-evidence-v1`).", "",
-        "Cell definitions live in `ccrlib/suite.py`; both scripts call the same functions.", "",
+        "Cell definitions live in `ccrlib/suite.py`; both scripts call the same functions. "
+        "`figures/*.csv` hold the plot-ready series (RQ2 frontier, RQ3 adoption curves, adoption×ρ "
+        "grid with a*(ρ), RQ5 claim_gap with CIs) — plotted on the paper side, no plotting deps here.", "",
     ])
+
+
+# --- figures/*.csv (plot on the paper side; no plotting deps here) ----------------
+
+def _csv(header: list[str], rows: list[list]) -> str:
+    lines = [",".join(header)]
+    for r in rows:
+        lines.append(",".join("" if v is None else (f"{v:.4f}" if isinstance(v, float) else str(v))
+                              for v in r))
+    return "\n".join(lines) + "\n"
+
+
+def emit_figures(seeds: list[int], tasks: list[dict]) -> dict[str, str]:
+    files: dict[str, str] = {}
+
+    rows = []
+    for adv in (suite.HEADLINE_ADVERSARY, suite.NAIVE_ADVERSARY, suite.REPLAY_ADVERSARY):
+        for r in suite.rq3_adoption(seeds, tasks, adv):
+            rows.append([adv, r["avail"], r["ccrR_inc"], r["ccrR_exfil"], r["ccrR_net"],
+                         r["ccr_inc"], r["ccr_net"]])
+    files["figures/rq3_adoption.csv"] = _csv(
+        ["adversary", "avail", "ccrR_incident", "ccrR_exfil_incident", "ccrR_net",
+         "ccr_incident", "ccr_net"], rows)
+
+    rows = []
+    for e in suite.sens_adoption_rho(seeds, tasks):
+        for r in e["rows"]:
+            rows.append([e["rho"], r["avail"], r["ccrR_inc"], r["ccr_inc"], r["ccrR_net"], r["ccr_net"],
+                         round(r["ccrR_net"] - r["ccr_net"], 4), e["a_star"]])
+    files["figures/adoption_rho_grid.csv"] = _csv(
+        ["rho", "avail", "ccrR_incident", "ccr_incident", "ccrR_net", "ccr_net", "net_gain", "a_star"], rows)
+
+    rows = [[r["claim_gap"], r["ccr_inc"], r["ccrR_inc"], r["advantage"],
+             r["advantage_ci"]["lo"], r["advantage_ci"]["hi"]]
+            for r in suite.rq5_claimgap(seeds, tasks, ci=True)]
+    files["figures/rq5_claimgap.csv"] = _csv(
+        ["claim_gap", "ccr_incident", "ccrR_incident", "advantage", "advantage_ci_lo", "advantage_ci_hi"], rows)
+
+    rows = [[r["rho"], r["ccr_inc"], r["ccrR_inc"], r["ccr_net"], r["ccrR_net"], r["net_gain"]]
+            for r in suite.rq2_rho(seeds, tasks)]
+    files["figures/rq2_rho_frontier.csv"] = _csv(
+        ["rho", "ccr_incident", "ccrR_incident", "ccr_net", "ccrR_net", "net_gain"], rows)
+    return files
 
 
 def main() -> None:
@@ -326,6 +371,7 @@ def main() -> None:
         "SENSITIVITY.md": emit_sensitivity(seeds, tasks),
         "REPRODUCE.md": emit_reproduce(args.seeds, args.tasks),
     }
+    files.update(emit_figures(seeds, tasks))
     if args.check:
         bad = []
         for name, content in files.items():
@@ -336,15 +382,18 @@ def main() -> None:
         if bad:
             tmp = tempfile.mkdtemp(prefix="ccr-evidence-")
             for name in bad:
+                os.makedirs(os.path.dirname(os.path.join(tmp, name)), exist_ok=True)
                 with open(os.path.join(tmp, name), "w", encoding="utf-8") as fh:
                     fh.write(files[name])
             print(f"MISMATCH: {', '.join(bad)} differ from the committed files "
                   f"(regenerated copies in {tmp})")
             sys.exit(1)
-        print("OK: EVIDENCE.md, SENSITIVITY.md, REPRODUCE.md match the committed files.")
+        print(f"OK: {', '.join(files)} match the committed files.")
         return
     for name, content in files.items():
-        with open(os.path.join(ROOT, name), "w", encoding="utf-8") as fh:
+        path = os.path.join(ROOT, name)
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, "w", encoding="utf-8") as fh:
             fh.write(content)
         print(f"wrote {name}")
 
