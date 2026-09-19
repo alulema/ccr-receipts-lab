@@ -115,8 +115,10 @@ def emit_evidence(seeds: list[int], tasks: list[dict]) -> str:
             "`SENSITIVITY.md`.", ""]
 
     # RQ4
-    out += ["## RQ4 — Adversary best response (`forge` vs `absent`, CCR-R)", "",
-            f"`{suite.NAIVE_ADVERSARY}` ⇒ invalid quote (+{p.risk_forged:.2f}); "
+    out += ["## RQ4 — Adversary best response (`forge` / `replay` / `absent`, CCR-R)", "",
+            f"`{suite.NAIVE_ADVERSARY}` ⇒ self-signed quote, verifies invalid (+{p.risk_forged:.2f}); "
+            f"`{suite.REPLAY_ADVERSARY}` ⇒ genuine stale quote (wrong nonce), verifies invalid "
+            f"(+{p.risk_forged:.2f}; WI-4, `tests/test_attestation.py`); "
             f"`{suite.HEADLINE_ADVERSARY}` ⇒ no quote (+{p.risk_unattested:.2f}). "
             "`absent` is the exfiltrator's best response.", ""]
     out.append(_table(["avail", "adversary", "ccrR_inc", "ccrR_exfil", "ccrR_net", "ccr_inc (ref)", "ccr_net (ref)"],
@@ -126,14 +128,25 @@ def emit_evidence(seeds: list[int], tasks: list[dict]) -> str:
     out.append("")
 
     # RQ-COV
-    out += ["## RQ-COV — `attested_yet_abusing` (the cov<1 boundary, WI-2)", "",
-            "Headline pool plus one `attested_yet_abusing` agent per skill (runs the audited "
-            "image ⇒ earns a **valid** quote, yet misuses the datum). `attested_inc` counts "
-            "incidents where the router itself scored the chosen agent as `valid`.", ""]
-    byc = suite.rq_cov(seeds, tasks)
-    out.append(_table(["policy", "incident", "exfil_inc", "attested_inc", "net_util"],
+    out += [f"## RQ-COV — `attested_yet_abusing` (the cov<1 boundary, WI-2; k={suite.COV_K})", "",
+            "Headline pool plus one `attested_yet_abusing` agent per skill: **identical to "
+            "`correct` on every observable** (honest declaration 0.90, same description, same "
+            "latency profile, runs the audited image ⇒ genuine **valid** quote); the only "
+            "difference is the hidden semantic-misuse side effect. `attested_inc` counts "
+            f"incidents where the router itself scored the chosen agent as `valid`. Shortlist "
+            f"k={suite.COV_K} (full pool) so the benign attestable agents and the abuser compete "
+            "head-to-head — k=4 is confounded by top-k crowding (see `SENSITIVITY.md`). "
+            f"Net utility at k={suite.COV_K} is k-confounded (k receipts × ρ) and is not a result.", ""]
+    byc, shares = suite.rq_cov(seeds, tasks)
+    out.append(_table(["policy", "incident", "exfil_inc", "attested_inc", "net_util", "receipts"],
                       [[f"`{pol}`", _f(byc[pol]["incident_rate"]), _f(byc[pol]["exfil_incident_rate"]),
-                        _f(byc[pol]["attested_incident_rate"]), _f(byc[pol]["mean_net_utility"], 2)]
+                        _f(byc[pol]["attested_incident_rate"]), _f(byc[pol]["mean_net_utility"], 2),
+                        _f(byc[pol]["mean_receipts"], 2)]
+                       for pol in ("ccr", "receipt_only", "ccr_r")]))
+    out += ["", "Chosen-persona shares (which agent each policy routed to):", ""]
+    personas = sorted({k for pol in shares for k in shares[pol]})
+    out.append(_table(["policy"] + [f"`{k}`" for k in personas],
+                      [[f"`{pol}`"] + [_f(shares[pol].get(k, 0.0)) for k in personas]
                        for pol in ("ccr", "receipt_only", "ccr_r")]))
     out.append("")
 
@@ -156,15 +169,57 @@ def emit_sensitivity(seeds: list[int], tasks: list[dict]) -> str:
     out = [GENERATED, "", "# SENSITIVITY — parameter sweeps", "", _preamble(n_s, n_t), "",
            "Each sweep varies ONE parameter from the headline cell (the others fixed).", ""]
 
-    # cov sweep with the WI-2 persona
-    out += ["## `cov` sweep with the `attested_yet_abusing` persona present (CCR-R)", "",
+    # RQ-COV family: cov belief, shortlist size k, abuser share, declared cap (WI-2)
+    def _shares(d: dict) -> str:
+        return ", ".join(f"{k} {_f(v)}" for k, v in d.items())
+
+    out += [f"## `cov` sweep with the `attested_yet_abusing` persona present (CCR-R, k={suite.COV_K})", "",
             "`cov` is the router's *belief* about the runtime-integrity fraction of risk a valid "
             "quote removes. If `attested_inc` stays > 0 at every `cov` — including 1.0 — the "
             "semantic residual is structural (the router cannot see it), not a parameter.", ""]
-    out.append(_table(["cov", "gate", "ccrR_inc", "ccrR_exfil", "ccrR_attested_inc", "ccrR_net", "ccr_inc (ref)"],
+    out.append(_table(["cov", "gate", "ccrR_inc", "ccrR_exfil", "ccrR_attested_inc", "ccrR_net", "receipts", "ccr_inc (ref)"],
                       [[_f(r["cov"], 2), "yes" if r["gate"] else "no", _f(r["ccrR_inc"]), _f(r["ccrR_exfil"]),
-                        _f(r["ccrR_attested_inc"]), _f(r["ccrR_net"], 2), _f(r["ccr_inc"])]
+                        _f(r["ccrR_attested_inc"]), _f(r["ccrR_net"], 2), _f(r["ccrR_receipts"], 2), _f(r["ccr_inc"])]
                        for r in suite.sens_cov(seeds, tasks)]))
+    out.append("")
+
+    out += ["## Shortlist size `k` sweep for the RQ-COV pool (CCR-R) — the crowding confound", "",
+            "At k=4 the four ceiling-declarers (`degraded`, `canary_aware`, exfiltrator, and — in the "
+            "over-claim variant — the abuser) fill the shortlist and no `correct` agent is ever probed "
+            "or attested; the k=4 row is therefore a crowding artefact, not the WI-2 result.", ""]
+    out.append(_table(["k", "ccrR_inc", "ccrR_exfil", "ccrR_attested_inc", "ccrR_net", "receipts", "ccrR chosen shares"],
+                      [[str(r["k"]), _f(r["ccrR_inc"]), _f(r["ccrR_exfil"]), _f(r["ccrR_attested_inc"]),
+                        _f(r["ccrR_net"], 2), _f(r["ccrR_receipts"], 2), _shares(r["ccrR_shares"])]
+                       for r in suite.sens_cov_k(seeds, tasks)]))
+    out.append("")
+
+    out += [f"## Abuser-share sweep (`n_attest_abuser` ∈ {{1, 2}} vs 2 `correct` per skill; CCR-R, k={suite.COV_K})", ""]
+    out.append(_table(["abusers", "ccrR_inc", "ccrR_exfil", "ccrR_attested_inc", "ccrR_net", "receipts", "ccrR chosen shares"],
+                      [[str(r["n_abuser"]), _f(r["ccrR_inc"]), _f(r["ccrR_exfil"]), _f(r["ccrR_attested_inc"]),
+                        _f(r["ccrR_net"], 2), _f(r["ccrR_receipts"], 2), _shares(r["ccrR_shares"])]
+                       for r in suite.sens_cov_abusers(seeds, tasks)]))
+    out.append("")
+
+    out += [f"## Task-sample convergence of the RQ-COV residual (CCR-R, k={suite.COV_K}, {n_s} seeds)", "",
+            "The tie among observably identical agents (honest-card abuser vs the two `correct` agents) is "
+            "broken by a per-task latency jitter, so the residual is a task-sample statistic. "
+            "`share` = abuser's share of runs in which the attested tie group (not `degraded`) was routed to; "
+            "`expected` = abusers / (abusers + 2). This table is why the artifact uses "
+            f"{n_t} tasks: at 96 tasks the residual is within ~0.03 of its 240-task value.", ""]
+    out.append(_table(["tasks", "abusers", "ccrR_attested_inc", "share", "expected", "ccrR chosen shares"],
+                      [[str(r["n_tasks"]), str(r["n_abuser"]), _f(r["ccrR_attested_inc"]),
+                        _f(r["abuser_share_of_tie_group"]), _f(r["expected_share"]), _shares(r["ccrR_shares"])]
+                       for r in suite.sens_cov_convergence(seeds)]))
+    out.append("")
+
+    out += [f"## Abuser declared capability — lower vs upper bound (CCR-R, k={suite.COV_K})", "",
+            "`honest (0.90)` is the WI-2 headline persona (identical to `correct` on every observable). "
+            "`over-claim (CEILING)` is the **upper bound: a card over-claimer with a valid quote** — it "
+            "wins the card race, so attestation cannot demote it; reported as a bound, not as the WI-2 result.", ""]
+    out.append(_table(["abuser declares", "ccrR_inc", "ccrR_exfil", "ccrR_attested_inc", "ccrR_net", "receipts", "ccrR chosen shares"],
+                      [[r["declared"], _f(r["ccrR_inc"]), _f(r["ccrR_exfil"]), _f(r["ccrR_attested_inc"]),
+                        _f(r["ccrR_net"], 2), _f(r["ccrR_receipts"], 2), _shares(r["ccrR_shares"])]
+                       for r in suite.sens_cov_declared(seeds, tasks)]))
     out.append("")
 
     # adoption x rho grid
@@ -214,9 +269,9 @@ def emit_sensitivity(seeds: list[int], tasks: list[dict]) -> str:
     out.append("")
 
     # attest_availability, both adversaries
-    out += ["## `attest_availability` sweep, both adversaries (CCR-R)", ""]
+    out += ["## `attest_availability` sweep, all three adversary variants (CCR-R)", ""]
     rows = []
-    for adv in (suite.HEADLINE_ADVERSARY, suite.NAIVE_ADVERSARY):
+    for adv in (suite.HEADLINE_ADVERSARY, suite.NAIVE_ADVERSARY, suite.REPLAY_ADVERSARY):
         for r in suite.rq3_adoption(seeds, tasks, adv):
             rows.append([f"`{adv}`", _f(r["avail"], 2), _f(r["ccrR_inc"]), _f(r["ccrR_exfil"]),
                          _f(r["ccrR_net"], 2), _f(r["ccr_inc"]), _f(r["ccr_net"], 2)])
@@ -247,6 +302,7 @@ def emit_reproduce(n_seeds: int, n_tasks: int) -> str:
         f"({n_seeds} seeds x {n_tasks} tasks)",
         "python scripts/emit_evidence.py --check    # regenerate to a temp dir and diff against the committed files",
         "python scripts/run.py --ci                 # console view of the same cells (RQ1..RQ5, RQ-COV)",
+        "python -m unittest discover tests          # attestation verifier self-test (valid / forge / replay)",
         "```", "",
         "`--check` exits non-zero if any generated file differs from the committed one — run it "
         "before citing a number. To cite a number in the paper, cite the git tag of the commit "
@@ -258,7 +314,7 @@ def emit_reproduce(n_seeds: int, n_tasks: int) -> str:
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--seeds", type=int, default=8)
-    ap.add_argument("--tasks", type=int, default=24)
+    ap.add_argument("--tasks", type=int, default=96)
     ap.add_argument("--check", action="store_true",
                     help="regenerate into a temp dir and diff against the committed files")
     args = ap.parse_args()

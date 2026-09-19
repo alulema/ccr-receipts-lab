@@ -102,6 +102,12 @@ AUDITED_MEASUREMENT = "sha256:agent-stack-noegress-v1"
 
 # What a competent exfiltrator is actually running (has an outbound data path).
 EXFIL_MEASUREMENT = "sha256:agent-stack-egress-x9"
+# A non-audited, non-attestable stack (no TEE at all). Used for personas that never
+# present a quote, so their `runtime` is irrelevant to the router and must not be
+# read as "runs the exfiltration image".
+UNATTESTED_MEASUREMENT = "sha256:agent-stack-unattested"
+# A nonce from an earlier session, as captured by a replay attacker (WI-4).
+STALE_NONCE = "n000000000000"
 
 
 def sign_quote(measurement: str, nonce: str, authority: str) -> str:

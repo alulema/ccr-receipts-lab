@@ -29,7 +29,7 @@ Personas
 """
 from __future__ import annotations
 
-from .domain import SKILLS, AUDITED_MEASUREMENT, EXFIL_MEASUREMENT, det_unit
+from .domain import SKILLS, AUDITED_MEASUREMENT, EXFIL_MEASUREMENT, UNATTESTED_MEASUREMENT, det_unit
 
 CEILING = 0.99
 
@@ -57,7 +57,7 @@ def _declared(true_cap: float, claim_gap: float) -> float:
 
 
 def _agent(persona, skill, org, idx, declared_cap, signed, poison, scope, desc,
-           attestable, forges, runtime):
+           attestable, forges, runtime, replays=False):
     return {
         "id": f"{persona[:4]}-{skill}-{org}-{idx}",
         "org": org,
@@ -73,6 +73,7 @@ def _agent(persona, skill, org, idx, declared_cap, signed, poison, scope, desc,
         "description": desc,
         "attestable": attestable,
         "forges": forges,
+        "replays": replays,
         "runtime": runtime,
     }
 
@@ -86,7 +87,11 @@ def build_agents(
     n_exfil: int = 1,
     exfil_attest: str = "absent",  # "absent" (best response, HEADLINE, model-lock A2)
                                    # | "forge" (naive, self-incriminating contrast; WI-1)
+                                   # | "replay" (genuine stale quote, wrong nonce; WI-4)
     n_attest_abuser: int = 0,      # attested_yet_abusing count per skill (WI-2)
+    abuser_declared: float | None = None,  # None => declares HONESTLY (0.90, like `correct`;
+                                   # WI-2 headline, decision A). CEILING => the labelled
+                                   # upper-bound row "card over-claimer with a valid quote" (C).
 ) -> list[dict]:
     agents: list[dict] = []
     for skill in SKILLS:
@@ -114,13 +119,14 @@ def build_agents(
 
         for i in range(n_canary_aware):
             # Trusted-signed (passes identity attestation), fakes the probe, defects.
-            # Cannot attest the audited image -> absent quote.
+            # Has no TEE at all -> never presents a quote (absent); its `runtime` is
+            # therefore never observed and is set to the neutral unattested stack (WI-6).
             agents.append(_agent("canary_aware", skill, "adventureworks", i,
                                  _declared(PERSONA_TRUE["canary_aware"], claim_gap),
                                  signed=True, poison=False, scope="narrow",
                                  desc=f"Certified {skill} provider. {kw}",
                                  attestable=False, forges=False,
-                                 runtime=EXFIL_MEASUREMENT))
+                                 runtime=UNATTESTED_MEASUREMENT))
 
         for i in range(n_exfil):
             # THE hard case: capable + validly signed, advertises at the ceiling to
@@ -130,25 +136,32 @@ def build_agents(
             # strictly dominated (0.60 > 0.35), i.e. it is the adversary that
             # "incriminates itself" (AISec #88B). "forge" stays as a labeled naive
             # contrast; "absent" is the headline best-response adversary (WI-1).
+            if exfil_attest not in ("absent", "forge", "replay"):
+                raise ValueError(f"exfil_attest must be absent|forge|replay, got {exfil_attest!r}")
             forges = (exfil_attest == "forge")
+            replays = (exfil_attest == "replay")
             agents.append(_agent("competent_exfiltrator", skill, "adventureworks", i,
                                  CEILING,
                                  signed=True, poison=False, scope="narrow",
                                  desc=f"Premium {skill} specialist. {kw}",
-                                 attestable=False, forges=forges,
+                                 attestable=False, forges=forges, replays=replays,
                                  runtime=EXFIL_MEASUREMENT))
 
         for i in range(n_attest_abuser):
             # Runs the AUDITED image => earns a VALID quote, yet misuses a
             # legitimately-received datum through a channel the audited image
             # legitimately has (e.g. writes to a shared store read out-of-band later).
-            # Observably indistinguishable from `correct` once attested — that
-            # indistinguishability IS the measured cov<1 boundary (WI-2): attestation
-            # proves the runtime, not benign use of the data (semantic, not runtime).
+            # It is IDENTICAL to `correct` on every observable: honest declaration
+            # (0.90), same description template, same latency profile, valid quote.
+            # The only difference is the hidden semantic-misuse side effect — that is
+            # the measured cov<1 boundary (WI-2): attestation proves the runtime, not
+            # benign use of the data. `abuser_declared=CEILING` gives the upper-bound
+            # variant (a card over-claimer with a valid quote), reported separately.
+            declared = PERSONA_TRUE["attested_yet_abusing"] if abuser_declared is None else abuser_declared
             agents.append(_agent("attested_yet_abusing", skill, "adventureworks", i,
-                                 CEILING,
+                                 declared,
                                  signed=True, poison=False, scope="narrow",
-                                 desc=f"Certified premium {skill} specialist. {kw}",
+                                 desc=f"Reliable {skill} agent. {kw}",
                                  attestable=True, forges=False,
                                  runtime=AUDITED_MEASUREMENT))
     return agents

@@ -1,6 +1,6 @@
 """Local reproduction of the CCR-Receipts headline results (console view).
 
-    python scripts/run.py                 # defaults: 8 seeds x 24 tasks = 192 runs/cell
+    python scripts/run.py                 # defaults: 8 seeds x 96 tasks = 768 runs/cell
     python scripts/run.py --seeds 12 --tasks 48
     python scripts/run.py --ci             # add task-clustered bootstrap 95% CIs (RQ1, RQ5)
 
@@ -107,8 +107,8 @@ def _print_rq3(seeds, tasks) -> None:
 
 def _print_rq4(seeds, tasks) -> None:
     _banner("RQ4 — ADVERSARY BEST RESPONSE  (V=5, lambda_r=4, rho=0.3; CCR-R)",
-            "      forge => invalid quote (+0.60); absent => no quote (+0.35). 'absent' is the",
-            "      exfiltrator's best response (0.35 < 0.60), i.e. it declines to incriminate itself.")
+            "      forge/replay => invalid quote (+0.60); absent => no quote (+0.35). 'absent' is",
+            "      the exfiltrator's best response (0.35 < 0.60): it declines to incriminate itself.")
     hdr = f"{'avail':>7}{'adversary':>11}{'ccrR_inc':>10}{'ccrR_exfil':>12}{'ccrR_net':>10}"
     print(hdr); print("-" * len(hdr))
     for r in suite.rq4_best_response(seeds, tasks):
@@ -120,18 +120,21 @@ def _print_rq4(seeds, tasks) -> None:
 
 
 def _print_rq_cov(seeds, tasks) -> None:
-    by = suite.rq_cov(seeds, tasks)
-    _banner("RQ-COV — ATTESTED-YET-ABUSING  (cov<1 boundary, WI-2; pool adds an agent that",
-            "         earns a VALID quote yet is malicious: semantic misuse, not runtime)")
-    hdr = f"{'policy':<20}{'incident':>10}{'exfil_inc':>11}{'attested_inc':>13}{'net_util':>10}"
+    by, shares = suite.rq_cov(seeds, tasks)
+    _banner(f"RQ-COV — ATTESTED-YET-ABUSING  (cov<1 boundary, WI-2; k={suite.COV_K}; pool adds an",
+            "         agent IDENTICAL to `correct` on every observable — honest card, valid",
+            "         quote, same latency — that misuses the datum: semantic, not runtime)")
+    hdr = f"{'policy':<20}{'incident':>10}{'exfil_inc':>11}{'attested_inc':>13}{'net_util':>10}{'receipts':>10}"
     print(hdr); print("-" * len(hdr))
     for pol in ["ccr", "receipt_only", "ccr_r"]:
         r = by[pol]
         print(f"{pol:<20}{r['incident_rate']:>10.3f}{r['exfil_incident_rate']:>11.3f}"
-              f"{r['attested_incident_rate']:>13.3f}{r['mean_net_utility']:>10.2f}")
+              f"{r['attested_incident_rate']:>13.3f}{r['mean_net_utility']:>10.2f}{r['mean_receipts']:>10.2f}")
     print("-" * len(hdr))
+    print("ccr_r chosen-persona shares: " + ", ".join(f"{k}={v:.3f}" for k, v in shares["ccr_r"].items()))
     print("Read: attested_incident_rate > 0 under CCR-R measures cov<1 operationally --")
     print("a VALID attestation lowers risk but does not eliminate it (needs D2/IFC).")
+    print(f"Net utility at k={suite.COV_K} is k-confounded (k receipts x rho); quote incident only.")
 
 
 def _print_rq5_claimgap(seeds, tasks, ci: bool = False) -> None:
@@ -156,7 +159,7 @@ def _print_rq5_claimgap(seeds, tasks, ci: bool = False) -> None:
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--seeds", type=int, default=8)
-    ap.add_argument("--tasks", type=int, default=24)
+    ap.add_argument("--tasks", type=int, default=96)
     ap.add_argument("--ci", action="store_true",
                     help="print task-clustered bootstrap 95%% CIs (RQ1, RQ5)")
     args = ap.parse_args()

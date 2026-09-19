@@ -5,6 +5,61 @@ A running, dated log of what changed and why. Newest entry on top. Companion to
 
 ---
 
+## 2026-09-18 (night) — v2: WI-6, WI-4, RQ-COV re-measured (decision A/C), artifact at 8×96
+
+### Paper-side decisions received this session (binding)
+- **RQ-COV confound** (found by the paper side against v1): at k=4 four ceiling-declarers fill the
+  shortlist and `correct` is never probed — the v1 residual (0.802) was crowding, not the cov<1
+  boundary. **Decision (A):** `attested_yet_abusing` declares **honestly** (0.90), same description
+  and latency as `correct` — identical on every observable. **(C):** the over-claiming (0.99) variant
+  is kept as a labelled upper bound. RQ-COV cell at `k=6`; k sweep {4,5,6}; abuser-share {1,2};
+  cov sweep at k=6; chosen-persona shares printed.
+- **Artifact size → 8 seeds × 96 tasks** (option 1 of three; mixed-n and a seed-dependent jitter
+  rejected). Reason: with an honest-card abuser the residual is decided by a per-task latency
+  jitter, so it is a task-sample statistic; at 24 tasks it read 0.052, at 96 → 0.168, at 240 →
+  0.179 (≈ ⅓ of the 0.556 tie-group wins). The convergence table is in `SENSITIVITY.md` so the
+  choice of n is auditable. RQ-COV net utility at k=6 is k-confounded and will not be quoted.
+- WI-6: drop `status_ok` (not fix the ternary); replay ≡ forge stated in one sentence.
+
+### Done
+- **WI-6:** `docs/threat-mapping.md` (persona ↔ A2ASecBench *(verify)* / RATS RFC 9334; attestation
+  threats framed as an extension of A2ASecBench); `canary_score` = 0.7·success + 0.2·schema +
+  0.1·latency (the always-200 `httpStatus` factor removed, weight moved to the verifiable signal;
+  `httpStatus` removed from the observable reply); `canary_aware` runtime = `UNATTESTED_MEASUREMENT`.
+- **WI-4:** `exfil_attest="replay"` — a genuine quote (trusted authority, audited measurement) with
+  `STALE_NONCE` → verifies `invalid`. `tests/test_attestation.py` (5 tests, stdlib) asserts valid /
+  absent / forge / replay and that the nonce is the *only* check the replayer fails.
+- **RQ-COV (A/C)** as above: `build_agents(abuser_declared=None|CEILING)`, `_BASE_LATENCY` 120.
+- `ccrlib/suite.py`: `REPLAY_ADVERSARY`, `COV_K=6`, `chosen_shares`, `sens_cov_k`,
+  `sens_cov_abusers`, `sens_cov_declared`, `sens_cov_convergence`. `emit_evidence.py` / `run.py`
+  default `--tasks 96`. `--check` OK; ~55 s.
+- README results rewritten from v2; persona table and roadmap updated.
+
+### Measured (v2, 8×96) — what moved vs v1 (8×24) and what the paper must reconcile
+- RQ1–RQ5 were **unchanged by WI-6/WI-4 at 24 tasks** (canary_score reweight is identical for
+  success=1; no decision flipped). All movement below is the 24→96 task change.
+- **RQ1:** ccr_r incident 0.083 → **0.138** [0.108, 0.168]; ccr 0.896 → 0.931; reduction 0.812 →
+  **0.793** [0.768, 0.819]; net gain 2.045 → **1.853** [1.728, 1.986]. **ccr_r success 1.000 →
+  0.984** [0.974, 0.994] (ccr 0.999) — "success parity" becomes "near parity".
+- **RQ2:** gate still closes at ρ*=1.08; net gain +2.65 / +1.85 / +1.06 / +0.08 at ρ=.1/.3/.5/.8.
+- **RQ3/RQ4 (absent):** 0.138 / 0.297 / 0.533 / 0.731 / 0.931; net 1.07 → −2.00. forge ≡ replay:
+  0.086 / 0.160 / 0.254. **a*(ρ):** 0.169/0.348/0.843 → **0.177 / 0.390 / 0.914**.
+- **RQ5:** advantage +0.893 [0.877, 0.910] at ≤0.75, **+0.793 [0.768, 0.819] at 1.0 — CIs now
+  DISJOINT** (were overlapping at 24 tasks). "Flat within CI" no longer holds; it is "flat, then a
+  real drop at the extreme" (canary_aware reaches the ceiling and takes a top-k slot).
+- **RQ-COV (A, k=6):** ccr_r incident = attested_inc = **0.168** (exfil 0.000); routed to degraded
+  0.444 / correct 0.388 / abuser 0.168; 2 abusers → 0.262. **cov-invariant** (0.168 at cov
+  0.5/0.7/0.9/1.0). Upper bound (C): 0.880. k sweep: 0.193 / 0.247 / 0.168 attested_inc at k=4/5/6
+  (k=4 also carries 0.128 exfil incidents from crowding).
+- λ_R=8 now ccr_r incident 0.073 (was 0.042); d_H=0: 0.927 (was 0.896) with 1.59 receipts.
+
+### Pending
+- Paper-side re-cross-check of the v0.1 draft against v2 (all RQ1–RQ5 figures moved).
+- A2ASecBench class names in `docs/threat-mapping.md` still marked *verify* (OpenReview gated).
+- Roadmap only: online receipt gate; observable "attestation-capable" card field (A3-lite).
+
+---
+
 ## 2026-09-18 (evening) — WI-5: evidence artifact, `suite.py`, paper-side decisions locked
 
 ### Paper-side sync (via the `papers` Claude Code session, same day)

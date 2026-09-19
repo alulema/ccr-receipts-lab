@@ -2,7 +2,7 @@
 
 # EVIDENCE — CCR-Receipts headline results
 
-Setup: `8` seeds × `24` tasks = **192 runs per cell**; headline cell V=5, λ_R=4, κ=0.2, ρ=0.3, B=5, cov=0.9, d_H=0.3, `claim_gap=1.0`, indistinguishable canary, `attest_availability=1.0`.
+Setup: `8` seeds × `96` tasks = **768 runs per cell**; headline cell V=5, λ_R=4, κ=0.2, ρ=0.3, B=5, cov=0.9, d_H=0.3, `claim_gap=1.0`, indistinguishable canary, `attest_availability=1.0`.
 
 Headline adversary: the **best-response `absent` exfiltrator** (model-lock A2); `forge` is the labelled naive contrast. CIs are 95% task-clustered bootstrap (n=2000 resamples, deterministic).
 
@@ -12,24 +12,24 @@ Every number here is **measured** from a committed run of this artifact. Reprodu
 
 | policy | success | incident | exfil_inc | attested_inc | defect | net_util | canaries | receipts |
 |---|---|---|---|---|---|---|---|---|
-| `random` | 0.661 | 0.422 | 0.203 | 0.000 | 0.000 | 0.62 | 0.00 | 0.00 |
-| `card_only` | 0.536 | 0.620 | 0.349 | 0.000 | 0.000 | -0.80 | 0.00 | 0.00 |
-| `signature_only` | 0.536 | 0.620 | 0.349 | 0.000 | 0.000 | -0.80 | 0.00 | 0.00 |
-| `optimistic_fallback` | 1.000 | 0.786 | 0.677 | 0.000 | 0.000 | 0.11 | 0.00 | 0.00 |
-| `receipt_only` | 0.573 | 0.000 | 0.000 | 0.000 | 0.000 | 0.36 | 0.00 | 5.00 |
-| `ccr` | 1.000 | 0.896 | 0.859 | 0.000 | 0.167 | -0.61 | 4.00 | 0.00 |
-| `ccr_r` | 1.000 | 0.083 | 0.073 | 0.000 | 0.005 | 1.44 | 4.00 | 4.00 |
+| `random` | 0.664 | 0.395 | 0.202 | 0.000 | 0.000 | 0.74 | 0.00 | 0.00 |
+| `card_only` | 0.479 | 0.630 | 0.309 | 0.000 | 0.000 | -1.12 | 0.00 | 0.00 |
+| `signature_only` | 0.479 | 0.630 | 0.309 | 0.000 | 0.000 | -1.12 | 0.00 | 0.00 |
+| `optimistic_fallback` | 1.000 | 0.833 | 0.716 | 0.000 | 0.000 | -0.15 | 0.00 | 0.00 |
+| `receipt_only` | 0.447 | 0.000 | 0.000 | 0.000 | 0.000 | -0.27 | 0.00 | 5.00 |
+| `ccr` | 0.999 | 0.931 | 0.904 | 0.000 | 0.181 | -0.78 | 4.00 | 0.00 |
+| `ccr_r` | 0.984 | 0.138 | 0.126 | 0.014 | 0.030 | 1.07 | 4.00 | 4.00 |
 
 95% CIs:
 
 | quantity | point [lo, hi] |
 |---|---|
-| `ccr_r.success` | 1.000 [1.000, 1.000] |
-| `ccr_r.incident` | 0.083 [0.052, 0.120] |
-| `ccr_r.exfil_incident` | 0.073 [0.042, 0.109] |
-| `ccr.incident` | 0.896 [0.849, 0.943] |
-| `reduction.incident` | 0.812 [0.767, 0.859] |
-| `diff.net_utility` | 2.045 [1.845, 2.248] |
+| `ccr_r.success` | 0.984 [0.974, 0.994] |
+| `ccr_r.incident` | 0.138 [0.108, 0.168] |
+| `ccr_r.exfil_incident` | 0.126 [0.096, 0.155] |
+| `ccr.incident` | 0.931 [0.911, 0.951] |
+| `reduction.incident` | 0.793 [0.768, 0.819] |
+| `diff.net_utility` | 1.853 [1.728, 1.986] |
 
 `reduction.incident` = paired (task, seed) CCR − CCR-R incident; `diff.net_utility` = paired CCR-R − CCR net utility.
 
@@ -37,8 +37,8 @@ Every number here is **measured** from a committed run of this artifact. Reprodu
 
 | policy | success | incident | exfil_inc | net_util |
 |---|---|---|---|---|
-| `ccr` | 1.000 | 0.896 | 0.859 | -0.61 |
-| `ccr_r` | 1.000 | 0.047 | 0.026 | 1.55 |
+| `ccr` | 0.999 | 0.931 | 0.904 | -0.78 |
+| `ccr_r` | 0.984 | 0.086 | 0.055 | 1.22 |
 
 ## RQ2 — Attestation frontier (sweep ρ)
 
@@ -46,48 +46,59 @@ Receipt-VoI gate at the malice-doubt floor: λ_R·cov·d_H − ρ > 0 ⇒ ρ < 1
 
 | ρ | gate | ccr_inc | ccrR_inc | ccr_net | ccrR_net | net_gain | ccrR_receipts |
 |---|---|---|---|---|---|---|---|
-| 0.10 | yes | 0.896 | 0.083 | -0.61 | 2.24 | +2.84 | 4.00 |
-| 0.30 | yes | 0.896 | 0.083 | -0.61 | 1.44 | +2.04 | 4.00 |
-| 0.50 | yes | 0.896 | 0.068 | -0.61 | 0.62 | +1.22 | 4.00 |
-| 0.80 | yes | 0.896 | 0.068 | -0.61 | -0.51 | +0.09 | 3.00 |
-| 1.08 | no | 0.896 | 0.896 | -0.61 | -0.61 | +0.00 | 0.00 |
-| 1.50 | no | 0.896 | 0.896 | -0.61 | -0.61 | +0.00 | 0.00 |
-| 2.50 | no | 0.896 | 0.896 | -0.61 | -0.61 | +0.00 | 0.00 |
+| 0.10 | yes | 0.931 | 0.138 | -0.78 | 1.87 | +2.65 | 4.00 |
+| 0.30 | yes | 0.931 | 0.138 | -0.78 | 1.07 | +1.85 | 4.00 |
+| 0.50 | yes | 0.931 | 0.113 | -0.78 | 0.28 | +1.06 | 4.00 |
+| 0.80 | yes | 0.931 | 0.069 | -0.78 | -0.70 | +0.08 | 3.00 |
+| 1.08 | no | 0.931 | 0.931 | -0.78 | -0.78 | +0.00 | 0.00 |
+| 1.50 | no | 0.931 | 0.931 | -0.78 | -0.78 | +0.00 | 0.00 |
+| 2.50 | no | 0.931 | 0.931 | -0.78 | -0.78 | +0.00 | 0.00 |
 
 ## RQ3 — Partial adoption (sweep `attest_availability`, headline adversary)
 
 | avail | ccr_inc | ccrR_inc | ccrR_exfil | ccr_net | ccrR_net | ccrR_receipts |
 |---|---|---|---|---|---|---|
-| 1.00 | 0.896 | 0.083 | 0.073 | -0.61 | 1.44 | 4.00 |
-| 0.75 | 0.896 | 0.245 | 0.234 | -0.61 | 0.80 | 4.00 |
-| 0.50 | 0.896 | 0.458 | 0.448 | -0.61 | -0.09 | 4.00 |
-| 0.25 | 0.896 | 0.693 | 0.667 | -0.61 | -0.94 | 4.00 |
-| 0.00 | 0.896 | 0.896 | 0.859 | -0.61 | -1.81 | 4.00 |
+| 1.00 | 0.931 | 0.138 | 0.126 | -0.78 | 1.07 | 4.00 |
+| 0.75 | 0.931 | 0.297 | 0.285 | -0.78 | 0.49 | 4.00 |
+| 0.50 | 0.931 | 0.533 | 0.519 | -0.78 | -0.47 | 4.00 |
+| 0.25 | 0.931 | 0.731 | 0.708 | -0.78 | -1.17 | 4.00 |
+| 0.00 | 0.931 | 0.931 | 0.902 | -0.78 | -2.00 | 4.00 |
 
 ρ is charged per attestation *request*, whether or not a quote comes back (symmetric with κ for the canary). The break-even adoption a*(ρ) is in `SENSITIVITY.md`.
 
-## RQ4 — Adversary best response (`forge` vs `absent`, CCR-R)
+## RQ4 — Adversary best response (`forge` / `replay` / `absent`, CCR-R)
 
-`forge` ⇒ invalid quote (+0.60); `absent` ⇒ no quote (+0.35). `absent` is the exfiltrator's best response.
+`forge` ⇒ self-signed quote, verifies invalid (+0.60); `replay` ⇒ genuine stale quote (wrong nonce), verifies invalid (+0.60; WI-4, `tests/test_attestation.py`); `absent` ⇒ no quote (+0.35). `absent` is the exfiltrator's best response.
 
 | avail | adversary | ccrR_inc | ccrR_exfil | ccrR_net | ccr_inc (ref) | ccr_net (ref) |
 |---|---|---|---|---|---|---|
-| 1.00 | `forge` | 0.047 | 0.026 | 1.55 | 0.896 | -0.61 |
-| 1.00 | `absent` | 0.083 | 0.073 | 1.44 | 0.896 | -0.61 |
-| 0.50 | `forge` | 0.125 | 0.062 | 1.20 | 0.896 | -0.61 |
-| 0.50 | `absent` | 0.458 | 0.448 | -0.09 | 0.896 | -0.61 |
-| 0.00 | `forge` | 0.203 | 0.068 | 0.86 | 0.896 | -0.61 |
-| 0.00 | `absent` | 0.896 | 0.859 | -1.81 | 0.896 | -0.61 |
+| 1.00 | `forge` | 0.086 | 0.055 | 1.22 | 0.931 | -0.78 |
+| 1.00 | `replay` | 0.086 | 0.055 | 1.22 | 0.931 | -0.78 |
+| 1.00 | `absent` | 0.138 | 0.126 | 1.07 | 0.931 | -0.78 |
+| 0.50 | `forge` | 0.160 | 0.091 | 0.91 | 0.931 | -0.78 |
+| 0.50 | `replay` | 0.160 | 0.091 | 0.91 | 0.931 | -0.78 |
+| 0.50 | `absent` | 0.533 | 0.519 | -0.47 | 0.931 | -0.78 |
+| 0.00 | `forge` | 0.254 | 0.122 | 0.53 | 0.931 | -0.78 |
+| 0.00 | `replay` | 0.254 | 0.122 | 0.53 | 0.931 | -0.78 |
+| 0.00 | `absent` | 0.931 | 0.902 | -2.00 | 0.931 | -0.78 |
 
-## RQ-COV — `attested_yet_abusing` (the cov<1 boundary, WI-2)
+## RQ-COV — `attested_yet_abusing` (the cov<1 boundary, WI-2; k=6)
 
-Headline pool plus one `attested_yet_abusing` agent per skill (runs the audited image ⇒ earns a **valid** quote, yet misuses the datum). `attested_inc` counts incidents where the router itself scored the chosen agent as `valid`.
+Headline pool plus one `attested_yet_abusing` agent per skill: **identical to `correct` on every observable** (honest declaration 0.90, same description, same latency profile, runs the audited image ⇒ genuine **valid** quote); the only difference is the hidden semantic-misuse side effect. `attested_inc` counts incidents where the router itself scored the chosen agent as `valid`. Shortlist k=6 (full pool) so the benign attestable agents and the abuser compete head-to-head — k=4 is confounded by top-k crowding (see `SENSITIVITY.md`). Net utility at k=6 is k-confounded (k receipts × ρ) and is not a result.
 
-| policy | incident | exfil_inc | attested_inc | net_util |
-|---|---|---|---|---|
-| `ccr` | 0.990 | 0.521 | 0.000 | -0.94 |
-| `receipt_only` | 0.490 | 0.000 | 0.490 | -1.09 |
-| `ccr_r` | 0.922 | 0.120 | 0.802 | -1.85 |
+| policy | incident | exfil_inc | attested_inc | net_util | receipts |
+|---|---|---|---|---|---|
+| `ccr` | 0.932 | 0.893 | 0.000 | -1.16 | 0.00 |
+| `receipt_only` | 0.000 | 0.000 | 0.000 | -0.57 | 6.00 |
+| `ccr_r` | 0.168 | 0.000 | 0.168 | -0.85 | 6.00 |
+
+Chosen-persona shares (which agent each policy routed to):
+
+| policy | `attested_yet_abusing` | `canary_aware` | `competent_exfiltrator` | `correct` | `degraded` |
+|---|---|---|---|---|---|
+| `ccr` | 0.033 | 0.016 | 0.798 | 0.104 | 0.050 |
+| `receipt_only` | 0.000 | 0.000 | 0.000 | 0.000 | 1.000 |
+| `ccr_r` | 0.168 | 0.000 | 0.000 | 0.388 | 0.444 |
 
 ## RQ5 — `claim_gap` sweep (CCR vs CCR-R, headline adversary)
 
@@ -95,8 +106,8 @@ advantage = CCR incident − CCR-R incident (paired 95% CI).
 
 | claim_gap | ccr_inc | ccrR_inc | ccr_net | ccrR_net | advantage | advantage 95% CI |
 |---|---|---|---|---|---|---|
-| 0.00 | 0.880 | 0.016 | -0.44 | 1.84 | +0.865 | [0.830, 0.902] |
-| 0.25 | 0.880 | 0.016 | -0.44 | 1.84 | +0.865 | [0.830, 0.902] |
-| 0.50 | 0.880 | 0.016 | -0.44 | 1.84 | +0.865 | [0.830, 0.902] |
-| 0.75 | 0.880 | 0.016 | -0.48 | 1.67 | +0.865 | [0.830, 0.902] |
-| 1.00 | 0.896 | 0.083 | -0.61 | 1.44 | +0.812 | [0.767, 0.859] |
+| 0.00 | 0.915 | 0.022 | -0.59 | 1.77 | +0.893 | [0.877, 0.910] |
+| 0.25 | 0.915 | 0.022 | -0.59 | 1.77 | +0.893 | [0.877, 0.910] |
+| 0.50 | 0.915 | 0.022 | -0.59 | 1.77 | +0.893 | [0.877, 0.910] |
+| 0.75 | 0.914 | 0.021 | -0.60 | 1.64 | +0.893 | [0.877, 0.910] |
+| 1.00 | 0.931 | 0.138 | -0.78 | 1.07 | +0.793 | [0.768, 0.819] |

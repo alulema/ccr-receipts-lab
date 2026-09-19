@@ -40,7 +40,7 @@ _BASE_LATENCY = {
     "degraded": 180,
     "canary_aware": 110,
     "competent_exfiltrator": 130,
-    "attested_yet_abusing": 130,
+    "attested_yet_abusing": 120,   # == correct: identical on every observable (WI-2, decision A)
 }
 
 
@@ -63,6 +63,9 @@ class SimAgent:
         self.attestable: bool = spec.get("attestable", False)
         # Will it forge a quote (claim the audited measurement it is not running)?
         self.forges: bool = spec.get("forges", False)
+        # Will it REPLAY a genuine quote captured earlier (right authority and
+        # measurement, stale nonce)? WI-4: exercises the verifier's freshness check.
+        self.replays: bool = spec.get("replays", False)
         # The measurement it actually runs (ground truth).
         self.runtime: str = spec.get("runtime", domain.AUDITED_MEASUREMENT)
 
@@ -106,13 +109,20 @@ class SimAgent:
         Truthful attestable agents get a quote from the trusted authority for the
         image they actually run. A forger claims the audited measurement but can
         only self-sign it (no trusted authority will vouch for an image it is not
-        running) -> detectable as invalid. Agents with no TEE return `absent`.
+        running) -> detectable as invalid. A replayer presents a genuine but stale
+        quote (wrong nonce) -> detectable as invalid. Agents with no TEE return
+        `absent`.
         """
         nonce = req["nonce"]
         latency = int(_BASE_LATENCY.get(self.persona, 120) * 0.5
                       + det_unit(req["taskId"], self.id, "attlat") * 40)
         if self.forges:
             quote = domain.make_quote(domain.AUDITED_MEASUREMENT, nonce, "self-signed")
+        elif self.replays:
+            # A genuine quote for the audited image, signed by the trusted authority,
+            # captured from an earlier session: everything checks out except the nonce.
+            quote = domain.make_quote(domain.AUDITED_MEASUREMENT, domain.STALE_NONCE,
+                                      "cc-attest-root")
         elif self.attestable:
             quote = domain.make_quote(self.runtime, nonce, "cc-attest-root")
         else:
@@ -139,7 +149,6 @@ class SimAgent:
             "kind": kind,
             "output": domain.agent_output(payload, correct),
             "schemaOk": True,
-            "httpStatus": 200 if (correct or kind == "canary") else 200,
             "latencyMs": self._latency(req["taskId"], kind, correct),
         }
 

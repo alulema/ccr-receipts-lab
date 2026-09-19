@@ -2,7 +2,7 @@
 
 # SENSITIVITY — parameter sweeps
 
-Setup: `8` seeds × `24` tasks = **192 runs per cell**; headline cell V=5, λ_R=4, κ=0.2, ρ=0.3, B=5, cov=0.9, d_H=0.3, `claim_gap=1.0`, indistinguishable canary, `attest_availability=1.0`.
+Setup: `8` seeds × `96` tasks = **768 runs per cell**; headline cell V=5, λ_R=4, κ=0.2, ρ=0.3, B=5, cov=0.9, d_H=0.3, `claim_gap=1.0`, indistinguishable canary, `attest_availability=1.0`.
 
 Headline adversary: the **best-response `absent` exfiltrator** (model-lock A2); `forge` is the labelled naive contrast. CIs are 95% task-clustered bootstrap (n=2000 resamples, deterministic).
 
@@ -10,113 +10,157 @@ Every number here is **measured** from a committed run of this artifact. Reprodu
 
 Each sweep varies ONE parameter from the headline cell (the others fixed).
 
-## `cov` sweep with the `attested_yet_abusing` persona present (CCR-R)
+## `cov` sweep with the `attested_yet_abusing` persona present (CCR-R, k=6)
 
 `cov` is the router's *belief* about the runtime-integrity fraction of risk a valid quote removes. If `attested_inc` stays > 0 at every `cov` — including 1.0 — the semantic residual is structural (the router cannot see it), not a parameter.
 
-| cov | gate | ccrR_inc | ccrR_exfil | ccrR_attested_inc | ccrR_net | ccr_inc (ref) |
+| cov | gate | ccrR_inc | ccrR_exfil | ccrR_attested_inc | ccrR_net | receipts | ccr_inc (ref) |
+|---|---|---|---|---|---|---|---|
+| 0.50 | yes | 0.168 | 0.000 | 0.168 | -0.85 | 6.00 | 0.932 |
+| 0.70 | yes | 0.168 | 0.000 | 0.168 | -0.85 | 6.00 | 0.932 |
+| 0.90 | yes | 0.168 | 0.000 | 0.168 | -0.85 | 6.00 | 0.932 |
+| 1.00 | yes | 0.168 | 0.000 | 0.168 | -0.85 | 6.00 | 0.932 |
+
+## Shortlist size `k` sweep for the RQ-COV pool (CCR-R) — the crowding confound
+
+At k=4 the four ceiling-declarers (`degraded`, `canary_aware`, exfiltrator, and — in the over-claim variant — the abuser) fill the shortlist and no `correct` agent is ever probed or attested; the k=4 row is therefore a crowding artefact, not the WI-2 result.
+
+| k | ccrR_inc | ccrR_exfil | ccrR_attested_inc | ccrR_net | receipts | ccrR chosen shares |
 |---|---|---|---|---|---|---|
-| 0.50 | yes | 0.922 | 0.120 | 0.802 | -1.85 | 0.990 |
-| 0.70 | yes | 0.922 | 0.120 | 0.802 | -1.85 | 0.990 |
-| 0.90 | yes | 0.922 | 0.120 | 0.802 | -1.85 | 0.990 |
-| 1.00 | yes | 0.922 | 0.120 | 0.802 | -1.85 | 0.990 |
+| 4 | 0.315 | 0.128 | 0.193 | 0.36 | 4.00 | attested_yet_abusing 0.177, canary_aware 0.008, competent_exfiltrator 0.115, correct 0.417, degraded 0.284 |
+| 5 | 0.262 | 0.013 | 0.247 | 0.09 | 5.00 | attested_yet_abusing 0.228, canary_aware 0.001, competent_exfiltrator 0.013, correct 0.488, degraded 0.270 |
+| 6 | 0.168 | 0.000 | 0.168 | -0.85 | 6.00 | attested_yet_abusing 0.168, correct 0.388, degraded 0.444 |
+
+## Abuser-share sweep (`n_attest_abuser` ∈ {1, 2} vs 2 `correct` per skill; CCR-R, k=6)
+
+| abusers | ccrR_inc | ccrR_exfil | ccrR_attested_inc | ccrR_net | receipts | ccrR chosen shares |
+|---|---|---|---|---|---|---|
+| 1 | 0.168 | 0.000 | 0.168 | -0.85 | 6.00 | attested_yet_abusing 0.168, correct 0.388, degraded 0.444 |
+| 2 | 0.262 | 0.000 | 0.262 | -1.22 | 6.00 | attested_yet_abusing 0.262, correct 0.294, degraded 0.444 |
+
+## Task-sample convergence of the RQ-COV residual (CCR-R, k=6, 8 seeds)
+
+The tie among observably identical agents (honest-card abuser vs the two `correct` agents) is broken by a per-task latency jitter, so the residual is a task-sample statistic. `share` = abuser's share of runs in which the attested tie group (not `degraded`) was routed to; `expected` = abusers / (abusers + 2). This table is why the artifact uses 96 tasks: at 96 tasks the residual is within ~0.03 of its 240-task value.
+
+| tasks | abusers | ccrR_attested_inc | share | expected | ccrR chosen shares |
+|---|---|---|---|---|---|
+| 24 | 1 | 0.052 | 0.118 | 0.333 | attested_yet_abusing 0.052, correct 0.391, degraded 0.557 |
+| 24 | 2 | 0.141 | 0.318 | 0.500 | attested_yet_abusing 0.141, correct 0.302, degraded 0.557 |
+| 96 | 1 | 0.168 | 0.302 | 0.333 | attested_yet_abusing 0.168, correct 0.388, degraded 0.444 |
+| 96 | 2 | 0.262 | 0.471 | 0.500 | attested_yet_abusing 0.262, correct 0.294, degraded 0.444 |
+| 240 | 1 | 0.179 | 0.322 | 0.333 | attested_yet_abusing 0.179, correct 0.378, degraded 0.443 |
+| 240 | 2 | 0.269 | 0.483 | 0.500 | attested_yet_abusing 0.269, correct 0.288, degraded 0.443 |
+
+## Abuser declared capability — lower vs upper bound (CCR-R, k=6)
+
+`honest (0.90)` is the WI-2 headline persona (identical to `correct` on every observable). `over-claim (CEILING)` is the **upper bound: a card over-claimer with a valid quote** — it wins the card race, so attestation cannot demote it; reported as a bound, not as the WI-2 result.
+
+| abuser declares | ccrR_inc | ccrR_exfil | ccrR_attested_inc | ccrR_net | receipts | ccrR chosen shares |
+|---|---|---|---|---|---|---|
+| honest (0.90) | 0.168 | 0.000 | 0.168 | -0.85 | 6.00 | attested_yet_abusing 0.168, correct 0.388, degraded 0.444 |
+| over-claim (CEILING) | 0.880 | 0.000 | 0.880 | -3.06 | 6.00 | attested_yet_abusing 0.880, correct 0.064, degraded 0.056 |
 
 ## Adoption × ρ grid — break-even adoption a*(ρ) (C3, headline adversary)
 
 a*(ρ) = smallest `attest_availability` at which CCR-R's net utility ≥ CCR's (first grid point where `ccrR_net ≥ ccr_net`, linearly interpolated from the previous grid point when the crossing falls between two points). Incident reaches CCR parity at avail=0 regardless of ρ; net utility does not, because ρ is paid per request.
 
-### ρ = 0.10 — a* = 0.169
+### ρ = 0.10 — a* = 0.177
 
 | avail | ccr_inc | ccrR_inc | ccr_net | ccrR_net | net_gain | ccrR_receipts |
 |---|---|---|---|---|---|---|
-| 0.00 | 0.896 | 0.896 | -0.61 | -1.01 | -0.40 | 4.00 |
-| 0.10 | 0.896 | 0.896 | -0.61 | -1.01 | -0.40 | 4.00 |
-| 0.25 | 0.896 | 0.693 | -0.61 | -0.14 | +0.47 | 4.00 |
-| 0.50 | 0.896 | 0.458 | -0.61 | 0.71 | +1.31 | 4.00 |
-| 0.75 | 0.896 | 0.245 | -0.61 | 1.60 | +2.20 | 4.00 |
-| 1.00 | 0.896 | 0.083 | -0.61 | 2.24 | +2.84 | 4.00 |
+| 0.00 | 0.931 | 0.931 | -0.78 | -1.20 | -0.42 | 4.00 |
+| 0.10 | 0.931 | 0.931 | -0.78 | -1.20 | -0.42 | 4.00 |
+| 0.25 | 0.931 | 0.731 | -0.78 | -0.37 | +0.41 | 4.00 |
+| 0.50 | 0.931 | 0.533 | -0.78 | 0.33 | +1.11 | 4.00 |
+| 0.75 | 0.931 | 0.297 | -0.78 | 1.29 | +2.07 | 4.00 |
+| 1.00 | 0.931 | 0.138 | -0.78 | 1.87 | +2.65 | 4.00 |
 
-### ρ = 0.30 — a* = 0.348
-
-| avail | ccr_inc | ccrR_inc | ccr_net | ccrR_net | net_gain | ccrR_receipts |
-|---|---|---|---|---|---|---|
-| 0.00 | 0.896 | 0.896 | -0.61 | -1.81 | -1.20 | 4.00 |
-| 0.10 | 0.896 | 0.896 | -0.61 | -1.81 | -1.20 | 4.00 |
-| 0.25 | 0.896 | 0.693 | -0.61 | -0.94 | -0.33 | 4.00 |
-| 0.50 | 0.896 | 0.458 | -0.61 | -0.09 | +0.51 | 4.00 |
-| 0.75 | 0.896 | 0.245 | -0.61 | 0.80 | +1.40 | 4.00 |
-| 1.00 | 0.896 | 0.083 | -0.61 | 1.44 | +2.04 | 4.00 |
-
-### ρ = 0.60 — a* = 0.843
+### ρ = 0.30 — a* = 0.390
 
 | avail | ccr_inc | ccrR_inc | ccr_net | ccrR_net | net_gain | ccrR_receipts |
 |---|---|---|---|---|---|---|
-| 0.00 | 0.896 | 0.885 | -0.61 | -3.73 | -3.12 | 4.00 |
-| 0.10 | 0.896 | 0.885 | -0.61 | -3.73 | -3.12 | 4.00 |
-| 0.25 | 0.896 | 0.672 | -0.61 | -2.62 | -2.01 | 4.00 |
-| 0.50 | 0.896 | 0.380 | -0.61 | -1.81 | -1.21 | 4.00 |
-| 0.75 | 0.896 | 0.156 | -0.61 | -0.76 | -0.16 | 4.00 |
-| 1.00 | 0.896 | 0.026 | -0.61 | -0.35 | +0.26 | 4.00 |
+| 0.00 | 0.931 | 0.931 | -0.78 | -2.00 | -1.22 | 4.00 |
+| 0.10 | 0.931 | 0.931 | -0.78 | -2.00 | -1.22 | 4.00 |
+| 0.25 | 0.931 | 0.731 | -0.78 | -1.17 | -0.39 | 4.00 |
+| 0.50 | 0.931 | 0.533 | -0.78 | -0.47 | +0.31 | 4.00 |
+| 0.75 | 0.931 | 0.297 | -0.78 | 0.49 | +1.27 | 4.00 |
+| 1.00 | 0.931 | 0.138 | -0.78 | 1.07 | +1.85 | 4.00 |
+
+### ρ = 0.60 — a* = 0.914
+
+| avail | ccr_inc | ccrR_inc | ccr_net | ccrR_net | net_gain | ccrR_receipts |
+|---|---|---|---|---|---|---|
+| 0.00 | 0.931 | 0.921 | -0.78 | -3.92 | -3.14 | 4.00 |
+| 0.10 | 0.931 | 0.921 | -0.78 | -3.92 | -3.14 | 4.00 |
+| 0.25 | 0.931 | 0.702 | -0.78 | -2.86 | -2.08 | 4.00 |
+| 0.50 | 0.931 | 0.424 | -0.78 | -2.17 | -1.39 | 4.00 |
+| 0.75 | 0.931 | 0.178 | -0.78 | -1.05 | -0.27 | 4.00 |
+| 1.00 | 0.931 | 0.043 | -0.78 | -0.63 | +0.14 | 4.00 |
 
 Summary:
 
 | ρ | a*(ρ) |
 |---|---|
-| 0.10 | 0.169 |
-| 0.30 | 0.348 |
-| 0.60 | 0.843 |
+| 0.10 | 0.177 |
+| 0.30 | 0.390 |
+| 0.60 | 0.914 |
 
 ## ρ sweep (attestation frontier; same cells as EVIDENCE RQ2)
 
 | ρ | gate | ccr_inc | ccrR_inc | ccr_net | ccrR_net | net_gain |
 |---|---|---|---|---|---|---|
-| 0.10 | yes | 0.896 | 0.083 | -0.61 | 2.24 | +2.84 |
-| 0.30 | yes | 0.896 | 0.083 | -0.61 | 1.44 | +2.04 |
-| 0.50 | yes | 0.896 | 0.068 | -0.61 | 0.62 | +1.22 |
-| 0.80 | yes | 0.896 | 0.068 | -0.61 | -0.51 | +0.09 |
-| 1.08 | no | 0.896 | 0.896 | -0.61 | -0.61 | +0.00 |
-| 1.50 | no | 0.896 | 0.896 | -0.61 | -0.61 | +0.00 |
-| 2.50 | no | 0.896 | 0.896 | -0.61 | -0.61 | +0.00 |
+| 0.10 | yes | 0.931 | 0.138 | -0.78 | 1.87 | +2.65 |
+| 0.30 | yes | 0.931 | 0.138 | -0.78 | 1.07 | +1.85 |
+| 0.50 | yes | 0.931 | 0.113 | -0.78 | 0.28 | +1.06 |
+| 0.80 | yes | 0.931 | 0.069 | -0.78 | -0.70 | +0.08 |
+| 1.08 | no | 0.931 | 0.931 | -0.78 | -0.78 | +0.00 |
+| 1.50 | no | 0.931 | 0.931 | -0.78 | -0.78 | +0.00 |
+| 2.50 | no | 0.931 | 0.931 | -0.78 | -0.78 | +0.00 |
 
 ## λ_R sweep (price of an incident)
 
 | λ_R | gate | ccr_inc | ccrR_inc | ccr_net | ccrR_net | ccrR_receipts |
 |---|---|---|---|---|---|---|
-| 1.0 | no | 0.896 | 0.896 | 2.08 | 2.08 | 0.00 |
-| 2.0 | yes | 0.896 | 0.083 | 1.18 | 1.60 | 4.00 |
-| 4.0 | yes | 0.896 | 0.083 | -0.61 | 1.44 | 4.00 |
-| 8.0 | yes | 0.896 | 0.042 | -4.19 | 1.38 | 4.00 |
+| 1.0 | no | 0.931 | 0.931 | 2.01 | 2.01 | 0.00 |
+| 2.0 | yes | 0.931 | 0.138 | 1.08 | 1.35 | 4.00 |
+| 4.0 | yes | 0.931 | 0.138 | -0.78 | 1.07 | 4.00 |
+| 8.0 | yes | 0.931 | 0.073 | -4.50 | 0.99 | 4.00 |
 
 ## d_H sweep (malice-doubt floor of the receipt gate)
 
 | d_H | gate | ccr_inc | ccrR_inc | ccr_net | ccrR_net | ccrR_receipts |
 |---|---|---|---|---|---|---|
-| 0.00 | no | 0.896 | 0.896 | -0.61 | -1.06 | 1.52 |
-| 0.10 | yes | 0.896 | 0.083 | -0.61 | 1.44 | 4.00 |
-| 0.30 | yes | 0.896 | 0.083 | -0.61 | 1.44 | 4.00 |
-| 0.50 | yes | 0.896 | 0.083 | -0.61 | 1.44 | 4.00 |
+| 0.00 | no | 0.931 | 0.927 | -0.78 | -1.27 | 1.59 |
+| 0.10 | yes | 0.931 | 0.138 | -0.78 | 1.07 | 4.00 |
+| 0.30 | yes | 0.931 | 0.138 | -0.78 | 1.07 | 4.00 |
+| 0.50 | yes | 0.931 | 0.138 | -0.78 | 1.07 | 4.00 |
 
-## `attest_availability` sweep, both adversaries (CCR-R)
+## `attest_availability` sweep, all three adversary variants (CCR-R)
 
 | adversary | avail | ccrR_inc | ccrR_exfil | ccrR_net | ccr_inc (ref) | ccr_net (ref) |
 |---|---|---|---|---|---|---|
-| `absent` | 1.00 | 0.083 | 0.073 | 1.44 | 0.896 | -0.61 |
-| `absent` | 0.75 | 0.245 | 0.234 | 0.80 | 0.896 | -0.61 |
-| `absent` | 0.50 | 0.458 | 0.448 | -0.09 | 0.896 | -0.61 |
-| `absent` | 0.25 | 0.693 | 0.667 | -0.94 | 0.896 | -0.61 |
-| `absent` | 0.00 | 0.896 | 0.859 | -1.81 | 0.896 | -0.61 |
-| `forge` | 1.00 | 0.047 | 0.026 | 1.55 | 0.896 | -0.61 |
-| `forge` | 0.75 | 0.088 | 0.047 | 1.39 | 0.896 | -0.61 |
-| `forge` | 0.50 | 0.125 | 0.062 | 1.20 | 0.896 | -0.61 |
-| `forge` | 0.25 | 0.151 | 0.062 | 1.17 | 0.896 | -0.61 |
-| `forge` | 0.00 | 0.203 | 0.068 | 0.86 | 0.896 | -0.61 |
+| `absent` | 1.00 | 0.138 | 0.126 | 1.07 | 0.931 | -0.78 |
+| `absent` | 0.75 | 0.297 | 0.285 | 0.49 | 0.931 | -0.78 |
+| `absent` | 0.50 | 0.533 | 0.519 | -0.47 | 0.931 | -0.78 |
+| `absent` | 0.25 | 0.731 | 0.708 | -1.17 | 0.931 | -0.78 |
+| `absent` | 0.00 | 0.931 | 0.902 | -2.00 | 0.931 | -0.78 |
+| `forge` | 1.00 | 0.086 | 0.055 | 1.22 | 0.931 | -0.78 |
+| `forge` | 0.75 | 0.112 | 0.069 | 1.17 | 0.931 | -0.78 |
+| `forge` | 0.50 | 0.160 | 0.091 | 0.91 | 0.931 | -0.78 |
+| `forge` | 0.25 | 0.208 | 0.117 | 0.78 | 0.931 | -0.78 |
+| `forge` | 0.00 | 0.254 | 0.122 | 0.53 | 0.931 | -0.78 |
+| `replay` | 1.00 | 0.086 | 0.055 | 1.22 | 0.931 | -0.78 |
+| `replay` | 0.75 | 0.112 | 0.069 | 1.17 | 0.931 | -0.78 |
+| `replay` | 0.50 | 0.160 | 0.091 | 0.91 | 0.931 | -0.78 |
+| `replay` | 0.25 | 0.208 | 0.117 | 0.78 | 0.931 | -0.78 |
+| `replay` | 0.00 | 0.254 | 0.122 | 0.53 | 0.931 | -0.78 |
 
 ## `claim_gap` sweep (same cells as EVIDENCE RQ5)
 
 | claim_gap | ccr_inc | ccrR_inc | advantage | advantage 95% CI |
 |---|---|---|---|---|
-| 0.00 | 0.880 | 0.016 | +0.865 | [0.830, 0.902] |
-| 0.25 | 0.880 | 0.016 | +0.865 | [0.830, 0.902] |
-| 0.50 | 0.880 | 0.016 | +0.865 | [0.830, 0.902] |
-| 0.75 | 0.880 | 0.016 | +0.865 | [0.830, 0.902] |
-| 1.00 | 0.896 | 0.083 | +0.812 | [0.767, 0.859] |
+| 0.00 | 0.915 | 0.022 | +0.893 | [0.877, 0.910] |
+| 0.25 | 0.915 | 0.022 | +0.893 | [0.877, 0.910] |
+| 0.50 | 0.915 | 0.022 | +0.893 | [0.877, 0.910] |
+| 0.75 | 0.914 | 0.021 | +0.893 | [0.877, 0.910] |
+| 1.00 | 0.931 | 0.138 | +0.793 | [0.768, 0.819] |

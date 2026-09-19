@@ -132,12 +132,21 @@ def hard_compatible(card: dict, task: dict) -> bool:
 # --- capability canary ---------------------------------------------------------
 
 def canary_score(metrics: dict, expected_answer: str) -> float:
+    """Empirical capability evidence in [0,1] from ONE canary reply:
+
+        0.7 * success   (output equals the router-known true answer — verifiable)
+      + 0.2 * schema    (reply is well-formed; a constant 1.0 in this simulation)
+      + 0.1 * latency   (linear penalty, 0 at >= 800 ms)
+
+    WI-6: an earlier `httpStatus` factor was removed — the simulated agent always
+    returned 200, so it was an undefined, constant term (the #88A "score function not
+    specified" critique). Its weight moved to `success`, the only verifiable signal.
+    """
     success = 1.0 if metrics.get("output") == expected_answer else 0.0
     schema = 1.0 if metrics.get("schemaOk") else 0.0
-    status_ok = 1.0 if metrics.get("httpStatus", 500) < 400 else 0.0
     lat = metrics.get("latencyMs", 800)
     lat_factor = max(0.0, 1.0 - lat / 800.0)
-    return max(0.0, min(1.0, 0.6 * success + 0.2 * schema + 0.1 * status_ok + 0.1 * lat_factor))
+    return max(0.0, min(1.0, 0.7 * success + 0.2 * schema + 0.1 * lat_factor))
 
 
 # --- attestation receipt (NEW) -------------------------------------------------

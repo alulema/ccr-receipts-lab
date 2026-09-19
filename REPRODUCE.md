@@ -5,9 +5,10 @@
 Python 3.10+ standard library only — nothing to install. Deterministic: no `random`, all draws come from `ccrlib/domain.det_unit` hashing, so every machine produces the same bytes.
 
 ```bash
-python scripts/emit_evidence.py            # rewrite EVIDENCE.md, SENSITIVITY.md, REPRODUCE.md (8 seeds x 24 tasks)
+python scripts/emit_evidence.py            # rewrite EVIDENCE.md, SENSITIVITY.md, REPRODUCE.md (8 seeds x 96 tasks)
 python scripts/emit_evidence.py --check    # regenerate to a temp dir and diff against the committed files
 python scripts/run.py --ci                 # console view of the same cells (RQ1..RQ5, RQ-COV)
+python -m unittest discover tests          # attestation verifier self-test (valid / forge / replay)
 ```
 
 `--check` exits non-zero if any generated file differs from the committed one — run it before citing a number. To cite a number in the paper, cite the git tag of the commit that contains these files (e.g. `aamas27-evidence-v1`).

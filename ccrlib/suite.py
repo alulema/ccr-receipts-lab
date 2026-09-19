@@ -19,11 +19,17 @@ from .scoring import Params
 
 HEADLINE_ADVERSARY = "absent"
 NAIVE_ADVERSARY = "forge"
+REPLAY_ADVERSARY = "replay"      # WI-4: genuine stale quote (wrong nonce)
+COV_K = 6                        # RQ-COV shortlist size: the full per-skill pool, so the
+                                 # benign attestable agents and the abuser compete head-to-head
+                                 # (k=4 is confounded by top-k crowding; see the k sweep)
 
 RHO_GRID = [0.1, 0.3, 0.5, 0.8, 1.08, 1.5, 2.5]
 AVAIL_GRID = [1.0, 0.75, 0.5, 0.25, 0.0]
 CLAIM_GAP_GRID = [0.0, 0.25, 0.5, 0.75, 1.0]
 COV_GRID = [0.5, 0.7, 0.9, 1.0]
+K_GRID = [4, 5, 6]
+ABUSER_GRID = [1, 2]
 LAMBDA_R_GRID = [1.0, 2.0, 4.0, 8.0]
 MALICE_DOUBT_GRID = [0.0, 0.1, 0.3, 0.5]
 ADOPTION_GRID = [0.0, 0.1, 0.25, 0.5, 0.75, 1.0]
@@ -46,6 +52,16 @@ def _cell(tasks, seeds, specs, params, policies, name="cell"):
     conds = [{"name": name, "specs": specs, "params": params, "indistinguishable": True}]
     rows, raw = experiment.run(tasks, conds, seeds, policies=policies)
     return _by_policy(rows), raw
+
+
+def chosen_shares(raw: list[dict], policy: str) -> dict[str, float]:
+    """Share of runs (for one policy) in which each persona was the chosen agent —
+    makes the routing mechanism behind an incident rate auditable."""
+    recs = [r for r in raw if r["policy"] == policy]
+    counts: dict[str, int] = {}
+    for r in recs:
+        counts[r["chosen_persona"] or "none"] = counts.get(r["chosen_persona"] or "none", 0) + 1
+    return {k: round(v / len(recs), 4) for k, v in sorted(counts.items())} if recs else {}
 
 
 def _ci(raw, metric) -> dict:
@@ -113,37 +129,110 @@ def rq3_adoption(seeds, tasks, adversary: str, avails=AVAIL_GRID, rho: float = 0
 
 
 def rq4_best_response(seeds, tasks, avails=(1.0, 0.5, 0.0)) -> list[dict]:
-    """forge (naive, self-incriminating) vs absent (best response) at three adoption levels."""
+    """forge (naive, self-incriminating) vs replay (genuine stale quote, WI-4) vs absent
+    (best response) at three adoption levels. forge and replay both verify `invalid`."""
     out = []
     for avail in avails:
-        for adv in (NAIVE_ADVERSARY, HEADLINE_ADVERSARY):
+        for adv in (NAIVE_ADVERSARY, REPLAY_ADVERSARY, HEADLINE_ADVERSARY):
             out.extend(rq3_adoption(seeds, tasks, adv, avails=[avail]))
     return out
 
 
 # --- RQ-COV: attested_yet_abusing (cov<1 boundary) ----------------------------------
 
-def rq_cov(seeds, tasks, cov: float | None = None, adversary: str = HEADLINE_ADVERSARY):
-    """Headline pool + one attested_yet_abusing agent per skill. `cov` overrides the
-    router's attest_coverage belief (used by the SENSITIVITY cov sweep)."""
-    specs = scenario.build_agents(claim_gap=1.0, attest_availability=1.0,
-                                  exfil_attest=adversary, n_attest_abuser=1)
-    p = headline_params() if cov is None else headline_params(attest_coverage=cov)
-    by, _ = _cell(tasks, seeds, specs, p, ["ccr", "receipt_only", "ccr_r"], f"cov{cov}")
-    return by
+def rq_cov(seeds, tasks, cov: float | None = None, adversary: str = HEADLINE_ADVERSARY,
+           k: int = COV_K, n_abuser: int = 1, abuser_declared: float | None = None):
+    """Headline pool + `n_abuser` attested_yet_abusing agents per skill, shortlist size
+    `k` (default COV_K = full pool). `cov` overrides the router's attest_coverage belief.
+    `abuser_declared=None` is the honest-card abuser (decision A, headline);
+    `scenario.CEILING` is the labelled upper-bound row (decision C).
+    Returns (rows_by_policy, shares_by_policy)."""
+    specs = scenario.build_agents(claim_gap=1.0, attest_availability=1.0, exfil_attest=adversary,
+                                  n_attest_abuser=n_abuser, abuser_declared=abuser_declared)
+    over = {"k_candidates": k}
+    if cov is not None:
+        over["attest_coverage"] = cov
+    pols = ["ccr", "receipt_only", "ccr_r"]
+    by, raw = _cell(tasks, seeds, specs, headline_params(**over), pols,
+                    f"cov{cov}-k{k}-ab{n_abuser}-{abuser_declared}")
+    shares = {pol: chosen_shares(raw, pol) for pol in pols}
+    return by, shares
+
+
+def _cov_row(by: dict, shares: dict, **tag) -> dict:
+    r = by["ccr_r"]
+    row = dict(tag)
+    row.update({
+        "ccrR_inc": r["incident_rate"], "ccrR_exfil": r["exfil_incident_rate"],
+        "ccrR_attested_inc": r["attested_incident_rate"], "ccrR_net": r["mean_net_utility"],
+        "ccrR_receipts": r["mean_receipts"], "ccr_inc": by["ccr"]["incident_rate"],
+        "ccrR_shares": shares["ccr_r"],
+    })
+    return row
 
 
 def sens_cov(seeds, tasks, covs=COV_GRID) -> list[dict]:
+    """cov belief sweep at k=COV_K with the honest-card abuser present."""
     out = []
     for cov in covs:
-        by = rq_cov(seeds, tasks, cov=cov)
-        r = by["ccr_r"]
-        out.append({
-            "cov": cov, "gate": gate_margin(headline_params(attest_coverage=cov)) > 0,
-            "ccrR_inc": r["incident_rate"], "ccrR_exfil": r["exfil_incident_rate"],
-            "ccrR_attested_inc": r["attested_incident_rate"], "ccrR_net": r["mean_net_utility"],
-            "ccr_inc": by["ccr"]["incident_rate"],
-        })
+        by, shares = rq_cov(seeds, tasks, cov=cov)
+        out.append(_cov_row(by, shares, cov=cov,
+                            gate=gate_margin(headline_params(attest_coverage=cov)) > 0))
+    return out
+
+
+def sens_cov_k(seeds, tasks, ks=K_GRID) -> list[dict]:
+    """Shortlist-size sweep for the RQ-COV pool: at k=4 four ceiling-declarers crowd
+    both `correct` agents out of the shortlist (top-k crowding confound)."""
+    out = []
+    for k in ks:
+        by, shares = rq_cov(seeds, tasks, k=k)
+        out.append(_cov_row(by, shares, k=k))
+    return out
+
+
+def sens_cov_abusers(seeds, tasks, ns=ABUSER_GRID) -> list[dict]:
+    """Abuser-share sweep at k=COV_K: 1 or 2 abusers vs 2 `correct` per skill."""
+    out = []
+    for n in ns:
+        by, shares = rq_cov(seeds, tasks, n_abuser=n)
+        out.append(_cov_row(by, shares, n_abuser=n))
+    return out
+
+
+CONVERGENCE_TASKS = [24, 96, 240]
+
+
+def sens_cov_convergence(seeds, n_tasks=CONVERGENCE_TASKS, ns=ABUSER_GRID) -> list[dict]:
+    """Task-sample convergence of the RQ-COV residual. The tie among observably
+    identical agents (honest-card abuser vs `correct`) is broken by a per-task latency
+    jitter, so the residual is a task-sample statistic; this table shows it settling
+    toward the abuser's share of the attested tie group as the task set grows."""
+    out = []
+    for nt in n_tasks:
+        tasks = scenario.build_tasks(nt)
+        for n in ns:
+            by, shares = rq_cov(seeds, tasks, n_abuser=n)
+            sh = shares["ccr_r"]
+            non_degraded = 1.0 - sh.get("degraded", 0.0)
+            abuser = sh.get("attested_yet_abusing", 0.0)
+            out.append({
+                "n_tasks": nt, "n_abuser": n,
+                "ccrR_attested_inc": by["ccr_r"]["attested_incident_rate"],
+                "abuser_share_of_tie_group": round(abuser / non_degraded, 4) if non_degraded else 0.0,
+                "expected_share": round(n / (n + 2), 4),   # n abusers vs 2 `correct` per skill
+                "ccrR_shares": sh,
+            })
+    return out
+
+
+def sens_cov_declared(seeds, tasks) -> list[dict]:
+    """Decision C: honest-card abuser (headline, lower bound) vs card over-claimer with a
+    valid quote (upper bound), both at k=COV_K."""
+    out = []
+    for label, declared in (("honest (0.90)", None), ("over-claim (CEILING)", scenario.CEILING)):
+        by, shares = rq_cov(seeds, tasks, abuser_declared=declared)
+        out.append(_cov_row(by, shares, declared=label))
     return out
 
 
