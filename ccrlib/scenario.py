@@ -84,7 +84,8 @@ def build_agents(
     n_degraded: int = 1,
     n_canary_aware: int = 1,
     n_exfil: int = 1,
-    exfil_attest: str = "forge",   # "forge" (naive) | "absent" (best response, WI-1)
+    exfil_attest: str = "absent",  # "absent" (best response, HEADLINE, model-lock A2)
+                                   # | "forge" (naive, self-incriminating contrast; WI-1)
     n_attest_abuser: int = 0,      # attested_yet_abusing count per skill (WI-2)
 ) -> list[dict]:
     agents: list[dict] = []

@@ -1,0 +1,3 @@
+# Normalize line endings: LF in the repo on every platform (the lab is edited from
+# both Windows and macOS; mixed CRLF/LF was polluting every diff).
+* text=auto eol=lf

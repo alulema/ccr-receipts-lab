@@ -35,8 +35,9 @@ U(a) = V·P[success | e] − λ_R·P[incident | e, Att] − λ_C·(cost + ρ)
 - **Attested risk:** a `valid` attestation lowers incident risk by coverage `cov` (`<1`
   on purpose — attestation proves the *runtime*, not that a legitimately-received datum
   won't be misused: **attestation ≠ information-flow control**); an `absent` quote adds a
-  small unattested penalty; a **detected forgery/replay adds a large penalty** (trying to
-  forge an attestation is itself a strong signal of malice).
+  small unattested penalty; a detected forgery/replay adds a larger one. **The receipt
+  tier's power is promoting the attested-benign agent above the unattested exfiltrator** —
+  not "catching a forgery": a best-responding exfiltrator never forges (model-lock A2).
 
 ### Model-lock decisions (see `HANDOFF-ccr-receipts-lab.md` §2 for the full rationale)
 
@@ -48,15 +49,25 @@ U(a) = V·P[success | e] − λ_R·P[incident | e, Att] − λ_C·(cost + ρ)
   violate the observability invariant. Instead, the `attested_yet_abusing` persona below
   measures the semantic residual **operationally**: it is observably identical to
   `correct` once attested, so its incident rate under a valid quote *is* the `cov<1`
-  measurement. Exact numeric split/justification for the paper: pending paper-side sign-off.
+  measurement. **Paper-side sign-off received (2026-09-18):** `cov` is defined in the paper
+  as the operator's prior belief `E[Risk^rt / Risk]`; `1 − cov` is *measured* by
+  `attested_incident_rate`, never hand-set. A `cov` sweep with the persona present is in
+  `SENSITIVITY.md` (the residual is invariant in `cov`, i.e. structural).
 - **A2 — the best-response adversary is `absent`, not `forge`.** A competent exfiltrator
   cannot obtain a genuine quote for the audited image (it needs an egress path), so its
   real choice is between presenting **no quote** (`absent`, +0.35 risk) or a **forged**
   one (`invalid`, +0.60 risk). Since 0.35 < 0.60, forging is strictly dominated — a
   best-responding adversary declines to attest rather than incriminate itself by forging.
-  `scenario.build_agents(..., exfil_attest=...)` now supports both: `"absent"` is the
-  headline best-response adversary; `"forge"` (the prior hard-wired default) is kept as a
-  labeled **naive-adversary** contrast. See RQ4 in `scripts/run.py`.
+  `scenario.build_agents(..., exfil_attest=...)` supports both: `"absent"` is the **default
+  and the headline** best-response adversary; `"forge"` (the prior hard-wired default) is
+  kept as a labeled **naive-adversary** contrast. See RQ4 in `EVIDENCE.md`.
+- **ρ is charged per attestation *request*, not per quote received.** The receipt-VoI gate
+  decides "is it worth *asking*" from observables, before the answer is known — exactly as
+  the canary gate pays κ whether or not the agent passes. Consequently an `absent` reply
+  still costs ρ, and at zero adoption CCR-R matches CCR on incident but is strictly
+  dominated on net utility by the wasted receipt budget (k·ρ per task). This is the
+  honest C3 floor; the break-even adoption `a*(ρ)` is measured in `SENSITIVITY.md`.
+  (Paper-side decision, 2026-09-18: keep — it preserves the canary/receipt symmetry.)
 - **A3 — context-sensitive `risk_unattested` (not implemented).** Declining attestation
   is arguably more suspicious when the pool *has* attestable agents than when TEEs are
   broadly unavailable. Left as a `TODO` in `Params.risk_unattested` pending RQ4 data.
@@ -86,10 +97,10 @@ A quote binds `(measurement, nonce, authority)`. The router trusts one authority
 The `competent_exfiltrator` and `attested_yet_abusing` both advertise at the ceiling
 (0.99) so they rank first — which is exactly why plain CCR delegates to either.
 
-¹ *Which adversary variant "wins" depends on attestation availability — see RQ4
-(`scripts/run.py`); the `absent` variant is not automatically caught the way a
-detected forgery is, it merely carries the same modest penalty as an honest
-unattested agent.*
+¹ *Which adversary variant "wins" depends on attestation availability — see RQ4 in
+`EVIDENCE.md`; the `absent` variant (default, headline) is not caught the way a detected
+forgery is — it merely carries the same modest penalty as an honest unattested agent, so
+the receipt tier only helps while an attested-benign agent exists to promote above it.*
 
 ## Layout
 
@@ -105,9 +116,14 @@ ccrlib/
   metrics.py      incident / exfil-incident / attested-incident / defection labeling + aggregation
   experiment.py   in-process transport + grid driver
   stats.py        task-clustered bootstrap CIs (deterministic; WI-3)
+  suite.py        THE single definition of every experimental cell (RQ1..RQ5, RQ-COV, sweeps)
 scripts/
-  run.py          RQ1 coverage, RQ2 frontier, RQ3 adoption, RQ4 adversary best-response,
-                  RQ-COV (cov<1 boundary), RQ5 claim_gap sweep; `--ci` for bootstrap CIs
+  run.py          console view of the suite; `--ci` for bootstrap CIs
+  emit_evidence.py  writes EVIDENCE.md / SENSITIVITY.md / REPRODUCE.md from the suite;
+                  `--check` verifies the committed files byte-for-byte (WI-5)
+EVIDENCE.md       RQ1–RQ5 + RQ-COV tables with CIs   (generated — never edit by hand)
+SENSITIVITY.md    cov, adoption×ρ (a*), ρ, λ_R, d_H, availability, claim_gap sweeps (generated)
+REPRODUCE.md      exact commands (generated)
 ```
 
 **Design invariant (inherited):** policies talk to agents only through
@@ -120,102 +136,77 @@ known only to the post-hoc evaluator.
 Dependency-free (Python 3.10+ stdlib). Deterministic — same numbers everywhere.
 
 ```bash
-python scripts/run.py                 # 8 seeds x 24 tasks = 192 runs/cell
-python scripts/run.py --seeds 12 --tasks 48
-python scripts/run.py --ci             # add task-clustered bootstrap 95% CIs (RQ1)
+python scripts/emit_evidence.py            # regenerate EVIDENCE.md / SENSITIVITY.md / REPRODUCE.md
+python scripts/emit_evidence.py --check    # verify the committed files reproduce byte-for-byte
+python scripts/run.py --ci                 # console view of the same cells (8 seeds x 24 tasks)
 ```
 
-### Headline (RQ1: V=5, λ_R=4, κ=0.2, ρ=0.3, indistinguishable canary, full attestation)
+**All numbers below are copied from `EVIDENCE.md` / `SENSITIVITY.md` at the tagged commit
+(`aamas27-evidence-v1`).** If a number here disagrees with those files, the files win —
+they are generated; this section is prose. Headline adversary: best-response `absent`.
+
+### RQ1 — headline (V=5, λ_R=4, κ=0.2, ρ=0.3, indistinguishable canary, full attestation)
 
 | policy | success | incident | exfil_inc | net_util | notes |
 |---|---|---|---|---|---|
 | `signature_only` | 0.536 | 0.620 | 0.349 | −0.80 | identity ≠ runtime: signs the exfiltrator in |
 | `optimistic_fallback` | 1.000 | 0.786 | 0.677 | 0.11 | executes liars before falling back |
-| `receipt_only` | 0.573 | **0.000** | 0.000 | 0.37 | safe but **capability-blind** |
+| `receipt_only` | 0.573 | **0.000** | 0.000 | 0.36 | safe but **capability-blind** |
 | `ccr` | 1.000 | **0.896** | 0.859 | −0.61 | passes the probe → delegates to exfiltrator |
-| **`ccr_r`** | **1.000** | **0.047** | 0.026 | **+1.55** | **receipt catches the exfiltrator** |
+| **`ccr_r`** | **1.000** | **0.083** | 0.073 | **+1.44** | **promotes the attested-benign agent above the unattested exfiltrator** |
 
-**CCR incident 0.896 → CCR-R 0.047 at success parity (1.000); net −0.61 → +1.55.**
-95% CI (task-clustered bootstrap, n=2000): incident 0.047 [0.021, 0.078]; the CCR −
-CCR-R incident reduction is 0.849 [0.808, 0.894] — **disjoint from 0** at the hostile cell.
+CCR incident 0.896 → CCR-R 0.083 at success parity; paired incident reduction
+0.812 [0.767, 0.859] and paired net-utility gain 2.045 [1.845, 2.248] — both CIs disjoint
+from 0. Against the naive `forge` adversary CCR-R does better (0.047) — that number is a
+contrast, not the headline: the forger incriminates itself.
 
-- **RQ2 (frontier):** while ρ is cheap the receipt pays (net gain +2.96 at ρ=0.1); the
-  VoI gate closes at `ρ ≥ λ_R·cov·d_H = 1.08`, past which CCR-R falls back to CCR.
-- **RQ3 (adoption):** as attestable-safe agents vanish (`attest_availability` 1.0→0.0),
-  CCR-R's incident rises gracefully (0.047→0.203) toward CCR's — never worse
-  *(measured with the **naive `forge`** adversary — see RQ4 for the honest picture)*.
+- **RQ2 (frontier):** the receipt pays while ρ is cheap (net gain +2.84 at ρ=0.1, +0.09 at
+  ρ=0.8); the VoI gate closes at `ρ ≥ λ_R·cov·d_H = 1.08`, past which CCR-R *is* CCR.
+- **RQ3 (adoption):** as attestable-safe agents vanish, CCR-R's incident rises
+  0.083 → 0.245 → 0.458 → 0.693 → 0.896 (= CCR) and its net utility falls 1.44 → −1.81
+  (CCR: −0.61). Incident degrades gracefully to parity; **net utility does not** — ρ is paid
+  per request. Break-even adoption `a*(ρ)`: 0.169 at ρ=0.1, 0.348 at ρ=0.3, 0.843 at ρ=0.6.
 
-### RQ4 — adversary best response (WI-1) — MEASURED
+### RQ4 — adversary best response (WI-1)
 
-| avail | adversary | ccrR_incident | ccrR_exfil_incident | ccrR_net |
-|---|---|---|---|---|
-| 1.00 | forge | 0.047 | 0.026 | 1.55 |
-| 1.00 | **absent** | **0.083** | 0.073 | 1.44 |
-| 0.50 | forge | 0.125 | 0.062 | 1.20 |
-| 0.50 | **absent** | **0.458** | 0.448 | −0.09 |
-| 0.00 | forge | 0.203 | 0.068 | 0.86 |
-| 0.00 | **absent** | **0.896** | 0.859 | −1.81 |
+| avail | `forge` inc / net | `absent` inc / net |
+|---|---|---|
+| 1.00 | 0.047 / 1.55 | **0.083** / 1.44 |
+| 0.50 | 0.125 / 1.20 | **0.458** / −0.09 |
+| 0.00 | 0.203 / 0.86 | **0.896** / −1.81 |
 
-**Confirmed, more starkly than the hypothesis:** the best-response (`absent`) adversary
-is *already* worse than the naive forger at full attestation availability (0.083 vs
-0.047), and at `attest_availability=0` it reaches **exact parity with plain CCR**
-(0.896 = 0.896) — CCR-R's advantage **completely evaporates** against an adversary that
-declines to incriminate itself once no agent in the pool can attest. Per the HANDOFF's
-own instruction, **`absent` — not `forge` — must be the paper's headline adversary**;
-RQ3's graceful-degradation story is only honest for the naive adversary and must be
-re-stated (or scoped explicitly to "forging" attackers) once this reaches the paper.
+The best-response adversary is already worse than the forger at full availability and
+reaches **exact incident parity with plain CCR** at zero availability. The forging
+adversary hid this; `absent` is therefore the paper's headline adversary, and the claim
+is "promotes the attested-benign agent," never "catches the forgery."
 
-### RQ-COV — `attested_yet_abusing` / the `cov<1` boundary (WI-2) — MEASURED
+### RQ-COV — `attested_yet_abusing` / the `cov<1` boundary (WI-2)
 
-Same pool as RQ1 plus one `attested_yet_abusing` agent per skill (declares at the
-ceiling, genuinely runs the audited image ⇒ earns a **valid** quote):
+Headline pool + one `attested_yet_abusing` agent per skill (valid quote, semantic misuse):
 
-| policy | incident | exfil_incident | attested_incident | net_util |
+| policy | incident | exfil_inc | attested_inc | net_util |
 |---|---|---|---|---|
 | `ccr` | 0.990 | 0.521 | 0.000 | −0.94 |
-| `receipt_only` | 0.490 | 0.000 | **0.490** | −1.09 |
-| `ccr_r` | 0.922 | 0.016 | **0.901** | −1.92 |
+| `receipt_only` | 0.490 | 0.000 | 0.490 | −1.09 |
+| `ccr_r` | 0.922 | 0.120 | **0.802** | −1.85 |
 
-**Confirmed, dramatically:** under CCR-R, `attested_incident_rate` = 0.901 out of an
-0.922 total incident rate — i.e. **98% of CCR-R's residual incidents in this pool come
-from an agent CCR-R itself scored as validly attested.** This is the `cov<1` boundary
-made operational: a valid quote is necessary evidence, not sufficient. **Caveat on
-magnitude:** this pool adds one `attested_yet_abusing` agent per skill (same weight as
-the one `competent_exfiltrator`), and the persona declares at the ceiling like the
-exfiltrator does, so it out-competes even `correct` agents for routing priority — the
-*existence* of a non-zero `cov<1` residual is the load-bearing claim; the exact 0.90+
-magnitude is an artifact of this pool's malice fraction and should not be quoted as a
-general rate without discussing pool composition.
+Under CCR-R, 0.802 of the 0.922 incident rate is attributable to an agent the router
+itself scored as **validly attested**, and (`SENSITIVITY.md`) that residual is **identical
+at cov ∈ {0.5, 0.7, 0.9, 1.0}** — raising the router's belief cannot remove what the
+router cannot see. The residual is structural, not a parameter. **Magnitude caveat:** this
+pool has one abuser per skill declaring at the ceiling, so it out-competes `correct` for
+routing; the *existence* of the residual is the claim, not the 0.80 figure.
 
-### RQ5 — `claim_gap` sweep (WI-3) — MEASURED, **contradicts the stated hypothesis**
+### RQ5 — `claim_gap` sweep (WI-3)
 
-Same pool as RQ4 with the `absent` best-response exfiltrator, sweeping `claim_gap`:
-
-| claim_gap | ccr_incident | ccrR_incident | advantage (ccr − ccrR) |
-|---|---|---|---|
-| 0.00 | 0.880 | 0.016 | +0.865 |
-| 0.25 | 0.880 | 0.016 | +0.865 |
-| 0.50 | 0.880 | 0.016 | +0.865 |
-| 0.75 | 0.880 | 0.016 | +0.865 |
-| 1.00 | 0.896 | 0.083 | +0.812 |
-
-**This does not match the hypothesis in `HANDOFF-ccr-receipts-lab.md` §3 (WI-3)**, which
-expected the advantage to be **≈0 at `claim_gap=0`, rising monotonically toward
-`claim_gap=1`.** Instead the advantage is **flat (~0.865) from 0.00–0.75, then *drops*
-slightly to 0.812 at 1.00.** Root cause (verified by code inspection, not guessed):
-`competent_exfiltrator` always declares its capability at the fixed `CEILING` (0.99) in
-`scenario.py::build_agents` — unlike `degraded`/`canary_aware`, it is never routed
-through `_declared(true_cap, claim_gap)`. Since `claim_gap` therefore never changes how
-the exfiltrator ranks against `correct` agents, and the exfiltrator drives most of this
-pool's incident rate, sweeping `claim_gap` barely moves the incident-based advantage —
-it only measurably shifts things at the `claim_gap=1.0` extreme (where `canary_aware`'s
-declared cap also reaches the ceiling and starts competing for the same top-k routing
-slots). **This is a modeling-scope question, not a bug, and per the HANDOFF's
-Coordination rule it is not resolved here:** should `competent_exfiltrator`'s declared
-capability *also* scale with `claim_gap` (making the sweep meaningful for this incident
-metric), or is the calibration claim better measured on a different pool/metric (e.g.
-`degraded` vs `card_only`, mirroring the base CCR paper's own calibration test)? Flagged
-for the paper side; **do not cite a "rising advantage" claim from this sweep as-is.**
+advantage (= CCR − CCR-R incident): +0.865 [0.830, 0.902] at claim_gap 0.00–0.75, then
++0.812 [0.767, 0.859] at 1.00 — **flat, with a small dip at the extreme, not the
+monotone rise the HANDOFF hypothesised.** Root cause (code inspection): `competent_exfiltrator`
+always declares at the fixed `CEILING` and is never routed through `_declared(true, claim_gap)`,
+so `claim_gap` never changes how the exfiltrator ranks against `correct`; it only matters at
+1.0, where `canary_aware` also reaches the ceiling and competes for top-k slots. Whether the
+exfiltrator's declared capability should also scale with `claim_gap` is a modeling-scope
+question routed to the paper side; the wording the paper may use is decided by this curve.
 
 ## Threats to validity (read before citing the numbers)
 
@@ -232,9 +223,11 @@ for the paper side; **do not cite a "rising advantage" claim from this sweep as-
 - **`claim_gap` sweep (RQ5) does not exercise the exfiltrator's own declared capability**
   (hardcoded at the ceiling) — see the RQ5 write-up above; the calibration claim needs
   paper-side scoping before it can be cited.
-- Task-clustered bootstrap CIs (`ccrlib/stats.py`, `--ci` flag) are implemented and
-  confirmed deterministic; the real Azure Confidential Computing artifact (a genuine
-  attestation quote integrated into the router over real A2A) is still future work.
+- **ρ is charged per request.** Modeling the receipt as free for agents that decline would
+  make CCR-R look better at low adoption; we deliberately do not (see model-lock above).
+- Task-clustered bootstrap CIs (`ccrlib/stats.py`) are deterministic; the real Azure
+  Confidential Computing artifact (a genuine attestation quote integrated into the router
+  over real A2A) is **out of scope for the AAMAS 2027 submission** (roadmap / pilot).
 
 ## Compliance
 
@@ -251,9 +244,9 @@ internal knowledge and does not represent any employer.
    integrated into the router over real A2A (distributed validation).
 3. More adversaries: ~~attested-yet-abusing~~ (done, WI-2, measured), replay attacker
    (WI-4, not yet implemented), honest-but-non-audited.
-4. ~~Sweep `claim_gap`~~ (done, WI-3/RQ5 — result contradicts the original monotonicity
-   hypothesis, see RQ5 write-up; needs paper-side scoping); sweep `d_H`, `cov`, `λ_R`;
-   learn the receipt gate online.
+4. ~~Sweep `claim_gap`, `d_H`, `cov`, `λ_R`, adoption×ρ~~ (done — `SENSITIVITY.md`);
+   learn the receipt gate online; let the VoI gate condition on an *observable* card field
+   advertising attestation support (observable-only version of A3; future work).
 5. `docs/threat-mapping.md` — map each persona to its A2ASecBench threat class (WI-6).
-6. `EVIDENCE.md` / `SENSITIVITY.md` generation script (WI-5) so headline numbers are
-   always regenerated from the artifact, never hand-typed.
+6. ~~`EVIDENCE.md` / `SENSITIVITY.md` generation script~~ (done, WI-5 — `scripts/emit_evidence.py`,
+   `--check` verifies byte-for-byte; cite the `aamas27-evidence-v1` tag).

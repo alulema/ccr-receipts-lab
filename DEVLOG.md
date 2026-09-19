@@ -5,20 +5,73 @@ A running, dated log of what changed and why. Newest entry on top. Companion to
 
 ---
 
-## 2026-09-18 — Model-lock (A1/A2) + WI-1/WI-2/WI-3 implemented
+## 2026-09-18 (evening) — WI-5: evidence artifact, `suite.py`, paper-side decisions locked
 
-> ### ⚠️ Continuing on another machine — read first
-> All the work below lives in the **working tree only — nothing is committed**. Switching
-> computers will **not** carry it over unless you move it first. Do one of:
->
-> - **Commit + push (recommended):** review file-by-file, then
->   `git add -A && git commit && git push origin master`, and `git pull` on the other machine.
-> - **Or carry a patch:** `git stash` / `git diff > wip.patch` (note: `git diff` excludes the
->   three **untracked** files — `DEVLOG.md`, `HANDOFF-ccr-receipts-lab.md`,
->   `ccr-receipts-aamas2027-proposal.md`, `ccrlib/stats.py` — use `git add -A` first or copy them by hand).
->
-> Repo: `https://github.com/alulema/ccr-receipts-lab.git` · base commit before this work:
-> `e3ea301` ("Additional to 1st commit") on `master`.
+### Paper-side sync (via the `papers` Claude Code session, same day)
+Decisions received and applied (binding for the paper unless the author overrides):
+- **A1:** scalar `cov` + operational WI-2 measurement **accepted**; no `cov_by_class` /
+  `semantic_floor`. Paper defines `cov` as the operator's belief `E[Risk^rt/Risk]`; `1−cov` is
+  *measured* via `attested_incident_rate`. New requirement: `cov` sweep with the persona present.
+- **A2:** `absent` **confirmed** as headline adversary; `forge` = labelled naive contrast. A3 stays
+  a TODO (would read as calibration against a known adversary).
+- **ρ accounting:** keep charging ρ per attestation *request* (an `absent` reply still costs ρ) —
+  symmetric with κ. The paper withdraws "CCR-R is never worse than CCR": at zero adoption CCR-R
+  matches CCR on incident but is dominated on net utility by k·ρ. New requirement: adoption×ρ grid
+  with break-even `a*(ρ)`.
+- **WI-2 framing:** "in scope for measurement, out of scope for defense" — CCR-R closes the
+  runtime-integrity sub-case of Limitation C only; the residual is D2/IFC.
+- **WI-3 wording:** decided by the measured curve (monotone / flat-within-CI / dip); "significantly"
+  only if the paired CI excludes 0.
+- **WI-6:** drop the `status_ok` factor from `canary_score` (don't fix the dead ternary); persona ↔
+  A2ASecBench/RATS mapping received for `docs/threat-mapping.md`.
+- **Logistics:** AAMAS 2027 abstract **Oct 1**, paper **Oct 8, 2026** (AoE); 8 pages + refs, LaTeX,
+  double-blind. **C4 (Azure CC) is out** of this submission (author confirmed). Paper 1 submitted to
+  ICITS'27 (author confirmed).
+
+### Done this session
+- **`ccrlib/suite.py` (new):** the single definition of every experimental cell (RQ1–RQ5, RQ-COV,
+  all sweeps, `a*(ρ)` break-even). `scripts/run.py` was refactored to format these rows only, so
+  console numbers and committed numbers come from one code path (the #88B "25/31 vs 29/35" class of
+  error is now structurally impossible).
+- **`scripts/emit_evidence.py` (new, WI-5):** writes `EVIDENCE.md`, `SENSITIVITY.md`, `REPRODUCE.md`
+  deterministically (no timestamps/hashes). `--check` regenerates and diffs → exit 1 on mismatch.
+  Verified: two consecutive runs are byte-identical; ~12 s on a laptop.
+- **Default adversary flipped:** `scenario.build_agents(exfil_attest="absent")` is now the default.
+  Headline numbers changed accordingly (CCR-R incident 0.047 → **0.083**; the 0.047 is the `forge`
+  contrast). RQ-COV also re-measured with `absent` (attested_inc 0.901 → **0.802**).
+- **README:** results section rewritten from the generated files; forgery narrative reframed
+  ("promotes the attested-benign agent," not "catches the forgery"); ρ-per-request rule and A1
+  sign-off documented; C4 marked out of scope.
+
+### Measured results the paper must reconcile (sent to the paper side)
+- **cov sweep (hypothesis CONFIRMED):** with `attested_yet_abusing` present, CCR-R's
+  `attested_incident_rate` = 0.802 at every cov ∈ {0.5, 0.7, 0.9, 1.0} — invariant. The residual is
+  structural. (Mechanically: `cov` scales the risk of *every* valid agent equally, so it cannot
+  re-rank a valid abuser below a valid `correct`.)
+- **Adoption×ρ / a*(ρ):** 0.169 (ρ=0.1), 0.348 (ρ=0.3), 0.843 (ρ=0.6). At ρ=0.6 CCR-R is net-positive
+  only at full adoption (+0.26).
+- **claim_gap (hypothesis NOT confirmed, as already noted 09-18 morning):** advantage +0.865
+  [0.830, 0.902] flat at 0.00–0.75, +0.812 [0.767, 0.859] at 1.00. CIs overlap. Root cause: the
+  exfiltrator declares at the fixed `CEILING`, so `claim_gap` never moves it. Modeling-scope
+  question for the paper side (scale the exfiltrator's declared cap too, or measure calibration on
+  a different pool/metric).
+- **RQ1 CIs (absent):** CCR-R incident 0.083 [0.052, 0.120]; paired reduction 0.812 [0.767, 0.859];
+  paired net gain 2.045 [1.845, 2.248] — both disjoint from 0.
+- **d_H = 0 quirk:** the gate formula at the floor says "no" yet CCR-R still attests 1.52 agents/task
+  (obs_risk > 0 from card/canary signals), incident stays at CCR's 0.896 and net drops to −1.06:
+  without the malice-doubt floor the receipt is bought for the wrong agents. Worth one sentence.
+
+### Pending (HANDOFF §3, paper-side priority order)
+- **WI-6:** `docs/threat-mapping.md` (mapping received); drop `status_ok` from `canary_score`;
+  neutral `runtime` for `canary_aware`. Not started.
+- **WI-4:** `replay_attacker` persona + `--selftest`. Not started (one RQ4 row when done).
+- Re-run `emit_evidence.py` after WI-4/WI-6 (both change the artifact) and re-tag.
+
+---
+
+## 2026-09-18 (morning) — Model-lock (A1/A2) + WI-1/WI-2/WI-3 implemented
+
+> Committed as `3dc9595` ("Algunos avances en el lab").
 
 ### Context
 This lab is the evidence harness for the follow-up paper (**D1, target AAMAS 2027**) to
